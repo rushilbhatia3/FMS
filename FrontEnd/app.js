@@ -278,7 +278,7 @@ const lifecycleButtons = (() => {
       <td>${f.tag || ''}</td>
       <td>${f.note || ''}</td>
 
-      <td class="cell-actions">${lifecycleButtons}</td>
+      <td class="col-actions">${lifecycleButtons}</td>
       <td class="cell-move">${checkoutButtons}</td>
       <td class="cell-edit">${editButtonHTML}</td>
     `;

@@ -40,23 +40,23 @@ table {
     width: 100%; 
     padding: 0px;
 }
+.table-scroll-region,
+.table-scroll-region * {
+  transform: none !important;
+  will-change: auto !important;
+  filter: none !important;
+  contain: initial !important;
+}
 
 .table-scroll-region {
-  position: relative;
-  max-height: calc(100vh - 8rem); /* temp sanity check */
-  height: calc(100vh - 8rem);  
+  position: relative;  
   overflow-y: auto;
+  overflow-x: hidden;
 
-  /* This defines how tall the scroll region can be.
-     We’re subtracting:
-       ~3.5rem for header bar height (app-header),
-       ~2rem for footer,
-       a bit of breathing room.
-     Tune these numbers to match your actual header/footer heights. */
-  max-height: calc(100vh - 4.5rem - 4.5rem);
-  border-radius: 0 0 8px 8px;
+  height: calc(100vh - 4.5rem - 4.5rem); /* viewport height minus header and footer */
   border: 1px solid #ddd;
   background: #fff;
+  border-radius: var(--radius-card); 
 }
 
 /* table stays full-width inside scroll region */
@@ -68,15 +68,14 @@ table {
   font-size: 0.9rem; 
   color: var(--text-main);
   background: var(--bg-card); 
-  border-radius: var(--radius-card); 
-  overflow: hidden; /* so header radius shows cleanly if you wrap table in a container later */
+
 }
 
 /* Header row styles */
 .file-table-head th {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 100;
 
   text-align: left;
   font-weight: 600;
@@ -102,7 +101,6 @@ table {
   line-height: 1.4;
   background: var(--bg-card); 
   max-width: 240px;
-  overflow-wrap: break-word;      /* break long strings like "AAAAAAAAAAAA" */
   word-break: break-word;
   white-space: normal;            /* allow wrapping */
   text-overflow: ellipsis;
