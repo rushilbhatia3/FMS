@@ -300,8 +300,16 @@ let currentSort = "created_at";
 let currentDir = "desc";
 
 const addFileModalEl = document.getElementById('addFileModal');
-const openAddFileBtn = document.getElementById('openAddFileBtn');
+   // manual tab cancel
+const importCancelBtn     = document.getElementById('importCancelBtn');        /*what where did this  come from */
 const addFileCancelBtn = document.getElementById('addFileCancelBtn');
+
+if (addFileCancelBtn) {
+  addFileCancelBtn.addEventListener('click', closeAddFileModal);
+}
+if (importCancelBtn) {           /* good lord knows what the hell is going on here */
+  importCancelBtn.addEventListener('click', closeAddFileModal);
+}
 
 const form = document.getElementById('fileForm');
 const tableBody = document.querySelector('#fileTable tbody');
@@ -1341,6 +1349,3 @@ document.querySelectorAll('th.sortable').forEach(th => {
   await loadFiles();
   updateSortIndicators();
 })();
-
-
-
