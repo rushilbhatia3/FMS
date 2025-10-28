@@ -732,88 +732,127 @@ table {
   word-break: break-word;
 }
 
-/* Base action button */
+/* ========== BUTTONS (refined weights) ========== */
+
+/* Base button reset */
 .btn,
 .table-btn {
   appearance: none;
   cursor: pointer;
-  border-radius: 6px;
-  border: 1px solid #d0d0cc;
-  background: #f9f9f6;
-  color: #1b1b1b;
-  font-size: 0.82rem;
-  font-weight: 500;
+  font-family: var(--font-stack);
+  font-size: 0.8rem;
   line-height: 1.2;
-  letter-spacing: 0.02em;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  padding: 0.5rem 0.8rem;
-  transition: all 0.18s ease;
-  box-shadow: 0 0 0 rgba(0,0,0,0);
+  font-weight: 500;
+
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 0.5rem 0.75rem;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  text-align: center;
+  white-space: nowrap;
+  min-height: 2rem;
+
+  /* kill all the global drop-shadows from before */
+  box-shadow: none;
 }
 
-.btn:hover,
-.table-btn:hover {
-  background: #f1f1ec;
-  border-color: #c7c7c0;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
-  transform: translateY(-1px);
-}
-
-.btn:active,
-.table-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 0 0 rgba(0,0,0,0);
-}
-
-/* Variant: action / “Proceed”, used for confirm / checkout / return */
-.btn-action,
+/* PRIMARY = high-emphasis (checkout / confirm / "do it") */
+.btn-primary,
 .btn-checkout {
-  background: #f4f4ef;
-  border-color: #cfcfc7;
-  color: #1b1b1b;
+  background: #1e1e1e;
+  color: #fff;
+  border-color: #1e1e1e;
 }
 
-.btn-action:hover,
+.btn-primary:hover,
 .btn-checkout:hover {
-  background: #ecece6;
+  background: #2a2a2a;   /* tiny step lighter */
+  border-color: #2a2a2a;
 }
 
-/* Variant: caution / destructive (soft, not alarm red) */
+/* SECONDARY = neutral / "cancel" / "restore" / "return" */
+.btn-secondary,
+.btn-restore,
+.btn-quiet,
+.btn-cancel,
+.btn-return {
+  background: #f9f9f9;
+  color: #333;
+  border-color: #cfcfcf;
+}
+
+.btn-secondary:hover,
+.btn-restore:hover,
+.btn-quiet:hover,
+.btn-cancel:hover,
+.btn-return:hover {
+  background: #efefef;
+  border-color: #bdbdbd;
+}
+
+/* DESTRUCTIVE = dangerous action (delete) */
 .btn-destructive,
 .btn-delete {
-  background: #f8f5f4;
-  border-color: #e1d8d5;
-  color: #5c2b2b;
+  background: #fff1f1;        /* stronger red tint than before */
+  color: #8a1f1f;             /* darker red text for contrast */
+  border-color: #d8a8a8;      /* warm border so it reads as "danger zone" */
 }
 
 .btn-destructive:hover,
 .btn-delete:hover {
-  background: #f2eae8;
-  border-color: #d2c5c2;
+  background: #ffe8e8;        /* slightly deeper on hover */
+  border-color: #c78686;
+  color: #721717;
 }
 
-/* Variant: restore / archival recovery / subtle-blue tone */
-.btn-restore {
-  background: #f6f7f9;
-  border-color: #ccd1d6;
-  color: #2b3c54;
-}
-
-.btn-restore:hover {
-  background: #eef1f4;
-  border-color: #c1c8d0;
-}
-
-/* Variant: quiet / cancel / dismiss */
-.btn-quiet {
-  background: #ffffff;
-  border-color: #d0d0cc;
+/* Tiny header/logout style (kept from before) */
+.btn-ghost-small {
+  appearance: none;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  line-height: 1;
+  font-size: 0.7rem;
   color: #444;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-ghost-small:hover {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.3);
 }
 
-.btn-quiet:hover {
-  background: #f8f8f6;
-  border-color: #c7c7c0;
+/* Full-width option for modal footer buttons */
+.wide-btn {
+  width: 100%;
+  border-radius: 6px;
+  justify-content: center;
+  min-height: 2.25rem;
+  font-size: 0.8rem;
+}
+
+/* Icon-only edit button */
+.icon-btn {
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.12);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.icon-btn:hover {
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.3);
+  color: var(--text-main);
 }
 
 

@@ -612,75 +612,50 @@ def checkout_file(
 def return_file(
     file_id: int,
     request: Request,
-    note: Optional[str] = Body(None, embed=False),
+    note: Optional[str] = Body(None, embed=False),  # <— key line
 ):
+    """
+    Returns a file by closing its active checkout.
+    The request body is just a string, e.g. "Returned with bite marks".
+    """
     user = get_current_user(request)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated."
-        )
-
+        raise HTTPException(status_code=401, detail="Not authenticated.")
     require_operator(user)
+    operator_name = user.get("email", "operator")
 
-    operator_name = (user.get("email") or "operator").strip()
-
-    file_row = db_read(
-        "SELECT id, is_deleted FROM files WHERE id = ?",
-        (file_id,)
-    )
+    file_row = db_read("SELECT id FROM files WHERE id = ?", (file_id,))
     if not file_row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found."
-        )
+        raise HTTPException(status_code=404, detail="File not found.")
 
     checkout_rows = db_read(
         """
-        SELECT id, note
-        FROM checkouts
-        WHERE file_id = ?
-          AND return_at IS NULL
-        ORDER BY checkout_at DESC
-        LIMIT 1
+        SELECT id, note FROM checkouts
+        WHERE file_id = ? AND return_at IS NULL
+        ORDER BY checkout_at DESC LIMIT 1
         """,
         (file_id,),
     )
     if not checkout_rows:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No active checkout to return for this file."
-        )
+        raise HTTPException(status_code=409, detail="No active checkout to return.")
 
     checkout_id = checkout_rows[0]["id"]
     prev_note = checkout_rows[0]["note"]
 
-    final_note = note if note is not None else prev_note
+    final_note = note or prev_note
 
-    try:
-        db_write(
-            """
-            UPDATE checkouts
-            SET
-                return_at     = CURRENT_TIMESTAMP,
-                operator_name = ?,
-                note          = ?
-            WHERE id = ?
-            """,
-            (operator_name, final_note, checkout_id),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"DB update failed: {e}",
-        )
+    db_write(
+        """
+        UPDATE checkouts
+        SET return_at = CURRENT_TIMESTAMP,
+            operator_name = ?,
+            note = ?
+        WHERE id = ?
+        """,
+        (operator_name, final_note, checkout_id),
+    )
 
-    return {
-        "status": "returned",
-        "file_id": file_id,
-        "checkout_id": checkout_id,
-        "operator_name": operator_name,
-    }
+    return {"status": "returned", "file_id": file_id, "note": final_note}
 
 
 @app.get("/api/files/{file_id}/details")

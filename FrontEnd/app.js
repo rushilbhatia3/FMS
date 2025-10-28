@@ -530,10 +530,10 @@ async function loadFiles() {
     return "—";
   }
   if (isOut) {
-    return `<button class="table-btn btn-checkout" onclick="openReturnModal(${f.id})">Return</button>`;
-  } else {
-    return `<button class="table-btn btn-checkout" onclick="openCheckoutModal(${f.id})">Check Out</button>`;
-  }
+  return `<button class="table-btn btn-return" onclick="openReturnModal(${f.id})">Return</button>`;
+} else {
+  return `<button class="table-btn btn-checkout" onclick="openCheckoutModal(${f.id})">Check Out</button>`;
+}
 })();
 
   const lifecycleButtons = (() => {
@@ -729,9 +729,8 @@ modalConfirmBtn.addEventListener('click', async () => {
       const res = await fetch(`/api/files/${modalFileId}/return`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        credentials: 'include',
         body: JSON.stringify({
-          note: noteVal
+           noteVal
         })
       });
 
