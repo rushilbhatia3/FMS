@@ -13,6 +13,8 @@
   --radius-control-search: 8px;
   --shadow-card: 0 20px 40px rgba(0,0,0,0.2);
   --font-stack: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+   --header-height: 52px;   
+  --footer-height: 60px;   
 }
 
 html {
@@ -26,12 +28,19 @@ html {
 body {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 100px 20px 0px; /* header height (~64px) + breathing room */
+  padding: 48px 20px; /* no top padding here anymore */
   background: transparent;
   color: var(--text-main);
   line-height: 1.4;
   font-family: inherit;
 }
+
+.app-main {
+  /* create breathing room below the header */
+  padding-top: calc(var(--header-height));
+  padding-bottom: calc(var(--footer-height) - 16px);
+}
+
 
 /* ========== TABLE (catalog list) ========== */
 table { 
@@ -43,16 +52,25 @@ table {
 
 
 .table-scroll-region {
-  position: relative;  
+  position: relative;
   overflow-y: auto;
   overflow-x: hidden;
 
-  height: calc(100vh - 4.5rem - 1.5rem); /* viewport height minus header and footer */
+  /* fill the viewport minus header & footer chrome */
+  height: calc(
+    100vh
+    - var(--header-height)
+    - var(--footer-height)
+    - 36px        
+  );/* tiny breathing space so footer shadow isn't jammed */
+
   border: 1px solid #ddd;
   background: #fff;
-  border-radius: var(--radius-card); 
-}
+  border-radius: var(--radius-card);
 
+  /* so sticky <th> with top:0 sticks to the top INSIDE this scroll region */
+  scroll-behavior: smooth;
+}
 
 /* table stays full-width inside scroll region */
 .file-table {
@@ -182,6 +200,8 @@ table {
 
 /* ========== TOOLBAR (top controls row) ========== */
 /* The fixed header bar */
+
+
 .app-header {
   position: fixed;
   top: 0;
@@ -191,27 +211,36 @@ table {
   z-index: 1000;
 
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  align-items: flex-start;   /* top-align title block + controls */
+  flex-wrap: wrap;           /* allows wrapping on narrow screens */
   gap: 1rem;
 
   background: #ffffff;
   border-bottom: 1px solid #e2e2e2;
   padding: 1rem 1rem;
 
-  /* full-width bar, so we don't cap at 1600px here */
+  /* lock in visual height for layout calcs */
+  min-height: var(--header-height);
+
   max-width: none;
   border-radius: 0;
   box-shadow: 0 4px 12px rgba(0,0,0,0.04);
 }
-
-/* Left cluster (branding) */
 .app-header-left {
   display: flex;
-  align-items: baseline;
-  min-width: 0; /* allows text to truncate if viewport gets tight */
+  flex-direction: column;
+  min-width: 0;
 }
 
+.app-header-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+  column-gap: 0.75rem;
+  margin-left: auto;
+  min-width: 0;
+}
 .product-title {
   display: flex;
   flex-direction: column;
@@ -230,16 +259,6 @@ table {
   font-weight: 400;
   color: #666;
   letter-spacing: -0.02em;
-}
-
-/* Right cluster (controls) */
-.app-header-right {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 0.75rem;
-  margin-left: auto;
-  min-width: 0;
 }
 
 /* Checkbox label */
@@ -651,9 +670,9 @@ table {
 
 /* constrain the text so it doesn't touch the viewport edge */
 .table-footer-inner {
-  max-width: 1550px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 0.5rem 1rem;
+  padding: 1rem 1rem;
 
   display: flex;
   justify-content: flex-end;
@@ -1158,4 +1177,37 @@ table {
     font-size: 0.75rem;
     color: var(--text-dim, #666);
     text-align: center;
+}
+
+/* ========== PAGINATION BAR ========== ------------> make this thinner */
+.pager-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  font-size: 0.8rem;
+  line-height: 1.2;
+  color: var(--text-main);
+
+  padding: 0.5rem 0.25rem 1rem;
+}
+
+.pager-status {
+  color: var(--text-dim);
+  min-width: 6rem;
+  text-align: center;
+}
+
+.pager-bar .table-btn[disabled] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+td span {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 0.9em;
+  vertical-align: middle;
 }

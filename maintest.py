@@ -295,75 +295,67 @@ def list_files(
     sort: str = Query("created_at"),
     dir: str = Query("desc"),
     status: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),  # hard cap; we'll clamp lower anyway
 ):
     """
-    List files for the table view.
+    Paginated list for the table view.
 
-    Auth:
-    - viewer: can list active files
-    - operator: same, plus may include deleted (`include_deleted=true`)
-
-    Security:
-    - viewers are NEVER allowed to see deleted/archived rows
-      even if they try to set include_deleted=true manually.
+    Security rules:
+    - guest / viewer:
+        - cannot see deleted rows (include_deleted forced False)
+        - response strips deletion metadata
+    - operator:
+        - can include deleted
     """
 
-    # 1. authn
+    #
+    # 1. auth
+    #
     user = get_current_user(request)
-    if user is None:
-        # treat as guest viewer
-        role = "guest"
-    else:
-        role = user.get("role", "viewer")
+    role = user.get("role", "guest") if user else "guest"
 
-    # viewers are not allowed to request deleted items
-    # if they try include_deleted=true, we silently override to False
     effective_include_deleted = include_deleted if role == "operator" else False
 
-    # sanitize search and start building filters
+    #
+    # 2. sanitize pagination inputs
+    #
+    # final_page_size is the actual enforced size we will use.
+    # We do our own clamp to 100 so UI is predictable.
+    #
+    MAX_PAGE_SIZE = 100
+    if page_size > MAX_PAGE_SIZE:
+        final_page_size = MAX_PAGE_SIZE
+    else:
+        final_page_size = page_size
+
+    if page < 1:
+        page = 1
+
+    offset = (page - 1) * final_page_size
+
+    #
+    # 3. build WHERE
+    #
     q = q.strip()
     where_clauses: list[str] = []
     params: list[Any] = []
 
-    # 3. allowlisted sort columns
-    allowed_sorts = {
-        "name": "LOWER(f.name)",
-        "created_at": "f.created_at",
-        "updated_at": "f.updated_at",
-        "clearance_level": "f.clearance_level",
-        "location": "SUBSTR(f.system_number,1,1), f.shelf",
-        "prev_checkout": "fs.date_of_previous_checkout"
-    }
-    sort_col = allowed_sorts.get(sort, "f.created_at")
-
-    sort_dir = "ASC" if dir.lower() == "asc" else "DESC"
-
-    #
-    # 4. status filter logic
-    #
-    # status="available": not deleted, not checked out
-    # status="out":       not deleted, checked out
-    # None:               normal (respect include_deleted/effective_include_deleted)
-    #
+    # status filter logic
     status_mode = False
     if status == "available":
         status_mode = True
         where_clauses.append("f.is_deleted = 0")
         where_clauses.append("fs.currently_held_by IS NULL")
-
     elif status == "out":
         status_mode = True
         where_clauses.append("f.is_deleted = 0")
         where_clauses.append("fs.currently_held_by IS NOT NULL")
-
     else:
-        # normal mode
         if not effective_include_deleted:
             where_clauses.append("f.is_deleted = 0")
 
-    #
-    # 5. search filter
-    #
+    # free-text search
     if q:
         like_param = f"%{q.lower()}%"
         where_clauses.append(
@@ -379,20 +371,24 @@ def list_files(
         )
         params.extend([like_param, like_param, like_param, like_param, like_param])
 
-    # build WHERE clause text
     where_sql = ""
     if where_clauses:
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
     #
-    # 6. ORDER BY logic
+    # 4. ORDER BY (same logic you had)
     #
-    # If we're filtering by status ("available" / "out"), we add a secondary
-    # sort to keep "active/not deleted" grouped predictably. Otherwise we just
-    # sort per user request. We do NOT force deleted rows to the bottom in
-    # normal browsing anymore, so when an operator toggles "show deleted"
-    # those archived rows just appear in-line according to sort.
-    #
+    allowed_sorts = {
+        "name": "LOWER(f.name)",
+        "created_at": "f.created_at",
+        "updated_at": "f.updated_at",
+        "clearance_level": "f.clearance_level",
+        "location": "SUBSTR(f.system_number,1,1), f.shelf",
+        "prev_checkout": "last_movement_ts"
+    }
+    sort_col = allowed_sorts.get(sort, "f.created_at")
+    sort_dir = "ASC" if dir.lower() == "asc" else "DESC"
+
     if status_mode:
         order_sql = f"""
         ORDER BY
@@ -408,52 +404,98 @@ def list_files(
         """
 
     #
-    # 7. run query
+    # 5. MAIN PAGE QUERY (LIMIT/OFFSET)
     #
-    sql = f"""
-    SELECT
-        f.id                         AS id,
-        f.name                       AS name,
-        f.system_number              AS system_number,
-        f.shelf                      AS shelf,
-        f.clearance_level            AS clearance_level,
-        f.added_by                   AS added_by,
-        f.created_at                 AS created_at,
-        f.updated_at                 AS updated_at,
-        f.tag                        AS tag,
-        f.note                       AS note,
-        f.is_deleted                 AS is_deleted,
-        f.deleted_at                 AS deleted_at,
+    data_sql = f"""
+        SELECT
+            f.id                         AS id,
+            f.name                       AS name,
+            f.system_number              AS system_number,
+            f.shelf                      AS shelf,
+            f.clearance_level            AS clearance_level,
+            f.added_by                   AS added_by,
+            f.created_at                 AS created_at,
+            f.updated_at                 AS updated_at,
+            f.tag                        AS tag,
+            f.note                       AS note,
+            f.is_deleted                 AS is_deleted,
+            f.deleted_at                 AS deleted_at,
 
-        fs.currently_held_by         AS currently_held_by,
-        fs.date_of_checkout          AS date_of_checkout,
-        fs.date_of_previous_checkout AS date_of_previous_checkout
+            fs.currently_held_by         AS currently_held_by,
+            fs.date_of_checkout          AS date_of_checkout,
+            fs.date_of_previous_checkout AS date_of_previous_checkout,
+
+            --last return time for this file
+            (
+                SELECT c.return_at
+                FROM checkouts c
+                WHERE c.file_id = f.id
+                AND c.return_at IS NOT NULL
+                ORDER BY c.checkout_at DESC
+                LIMIT 1
+            ) AS last_return_at,
+
+            -- unified "last movement" timestamp
+            -- if it's checked out now -> use the active checkout_at
+            -- else -> use last_return_at
+            CASE
+            WHEN fs.currently_held_by IS NOT NULL
+                THEN fs.date_of_checkout
+            ELSE (
+                SELECT c.return_at
+                FROM checkouts c
+                WHERE c.file_id = f.id
+                AND c.return_at IS NOT NULL
+                ORDER BY c.checkout_at DESC
+                LIMIT 1
+            )
+            END AS last_movement_ts
+
+        FROM files f
+        LEFT JOIN file_status fs
+        ON fs.file_id = f.id
+        {where_sql}
+        {order_sql}
+        LIMIT ? OFFSET ?;
+        """
+
+    page_params = params + [final_page_size, offset]
+    rows = db_read(data_sql, page_params)
+    items = [dict(r) for r in rows]
+
+    #
+    # 6. TOTAL COUNT QUERY
+    #
+    count_sql = f"""
+    SELECT COUNT(*) AS total_count
     FROM files f
     LEFT JOIN file_status fs
       ON fs.file_id = f.id
-    {where_sql}
-    {order_sql};
+    {where_sql};
     """
 
-    rows = db_read(sql, params)
-    result = [dict(row) for row in rows]
+    count_rows = db_read(count_sql, params)
+    total = count_rows[0]["total_count"] if count_rows else 0
 
     #
-    # 8. final safety pass on response for viewers
-    #
-    # For a "viewer", we should:
-    #   - hide `deleted_at`
-    #   - hide `is_deleted`
-    #   - (optional) hide `added_by` or `note` if those are considered internal
-    #
-    # For now we’ll only scrub deletion metadata.
+    # 7. scrub response for non-operators
     #
     if role != "operator":
-        for r in result:
+        for r in items:
             r.pop("deleted_at", None)
             r.pop("is_deleted", None)
 
-    return result
+    #
+    # 8. respond
+    #
+    return {
+        "items": items,
+        "page": page,
+        "page_size": final_page_size,
+        "total": total,
+    }
+    
+    
 
 @app.delete("/api/files/{file_id}")
 def soft_delete_file(
@@ -1188,6 +1230,38 @@ def export_data(
             detail="Invalid export type. Use files, checkouts, or all."
         )
 
+
+@app.get("/api/files/stats")
+def file_stats(request: Request):
+    user = get_current_user(request)
+    role = user.get("role", "guest") if user else "guest"
+
+    # guests/viewers should not see deleted counts?
+    # Up to you. In screenshot you're showing archived count even to operator.
+    # Let's keep behavior:
+    # - operator: sees all 3 numbers
+    # - viewer/guest: sees only active + total_active (same number twice effectively)
+
+    rows = db_read("""
+        SELECT
+          SUM(CASE WHEN is_deleted = 0 THEN 1 ELSE 0 END) AS active_count,
+          SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END) AS archived_count,
+          COUNT(*) AS total_count
+        FROM files;
+    """)
+
+    stats = dict(rows[0]) if rows else {
+        "active_count": 0,
+        "archived_count": 0,
+        "total_count": 0,
+    }
+
+    if role != "operator":
+        # hide archived_count explicitly
+        stats["archived_count"] = None
+        stats["total_count"] = stats["active_count"]
+
+    return stats
 
 
 innitDB()

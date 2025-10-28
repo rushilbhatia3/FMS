@@ -18,7 +18,25 @@ if (guestBtn) {
   });
 }
 
+const prevPageBtn  = document.getElementById('prevPageBtn');
+const nextPageBtn  = document.getElementById('nextPageBtn');
+const pagerStatusEl = document.getElementById('pagerStatus');
 
+if (prevPageBtn) {
+  prevPageBtn.addEventListener('click', async () => {
+    if (currentPage > 1) {
+      currentPage -= 1;
+      await loadFiles();
+    }
+  });
+}
+
+if (nextPageBtn) {
+  nextPageBtn.addEventListener('click', async () => {
+    currentPage += 1;
+    await loadFiles();
+  });
+}
 
 const sessionModalEl       = document.getElementById('sessionModal');
 const sessionTabOperator   = document.getElementById('sessionTabOperator');
@@ -38,6 +56,10 @@ const viewerErrorEl    = document.getElementById('viewerError');
 
 const sessionUserInfoEl = document.getElementById('sessionUserInfo');
 const logoutBtn         = document.getElementById('logoutBtn');
+
+
+let currentPage = 1;
+const PAGE_SIZE = 100;
 
 // tab switching
 function activateOperatorTab() {
@@ -415,6 +437,70 @@ function formatTimestamp(ts) {
   return `${day} ${month} ${year}, ${hh}:${mm} ${suffix}`;
 }
 
+async function updateFooterStats() {
+  try {
+    const res = await fetch(`/api/files/stats`, {
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      console.warn("footer stats failed status", res.status);
+      return;
+    }
+
+    const stats = await res.json();
+    // expected from backend:
+    // {
+    //   active_count: number,
+    //   archived_count: number | null,
+    //   total_count: number
+    // }
+
+    const activeCount    = stats.active_count ?? 0;
+    const archivedCount  = stats.archived_count; // may be null for viewer/guest
+    const totalCount     = stats.total_count ?? activeCount;
+
+    const activeLabel =
+      `${activeCount} active file${activeCount === 1 ? '' : 's'}`;
+
+    // if viewer/guest we intentionally don't show archived
+    const archivedLabel = (archivedCount === null || archivedCount === undefined)
+      ? ""
+      : `${archivedCount} archived`;
+
+    const totalLabel =
+      `${totalCount} total`;
+
+    document.getElementById('footerActiveCount').textContent = activeLabel;
+
+    // Gracefully hide the bullet + text if archived is hidden
+    const archivedEl = document.getElementById('footerArchivedCount');
+    const bullets = document.querySelectorAll('.footer-separator');
+    if (archivedLabel === "") {
+      if (archivedEl) archivedEl.textContent = "";
+      // hide the middle bullet(s) if you want to be tidy for viewers
+      // simplest: just blank them, don't remove nodes
+      bullets.forEach(b => {
+        if (b.previousElementSibling?.id === 'footerActiveCount') {
+          b.textContent = "";
+        }
+      });
+    } else {
+      if (archivedEl) archivedEl.textContent = archivedLabel;
+      bullets.forEach(b => {
+        if (b.previousElementSibling?.id === 'footerActiveCount') {
+          b.textContent = "•";
+        }
+      });
+    }
+
+    document.getElementById('footerTotalCount').textContent = totalLabel;
+
+    document.getElementById('tableFooter').classList.add('show');
+  } catch (err) {
+    console.warn("footer stats failed", err);
+  }
+}
 
 
 // handle submission
@@ -454,6 +540,46 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
+function updatePagerUI(page, pageSize, total) {
+  // total pages:
+  // we do math carefully: maxPage = ceil(total / pageSize), but guard 0
+  const safePageSize = pageSize > 0 ? pageSize : 1;
+  const maxPage = Math.max(1, Math.ceil(total / safePageSize));
+
+  // keep global currentPage in sync with what the server actually returned
+  currentPage = page;
+
+  // update "Page X of Y"
+  if (pagerStatusEl) {
+    pagerStatusEl.textContent = `Page ${page} of ${maxPage}`;
+  }
+
+  // enable/disable buttons
+  if (prevPageBtn) {
+    prevPageBtn.disabled = (page <= 1);
+  }
+
+  if (nextPageBtn) {
+    nextPageBtn.disabled = (page >= maxPage);
+  }
+}
+
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const sortField = th.getAttribute('data-sort');
+
+    if (currentSort === sortField) {
+      currentDir = currentDir === "asc" ? "desc" : "asc";
+    } else {
+      currentSort = sortField;
+      // default direction depends on column
+      currentDir = (sortField === "date_of_previous_checkout") ? "asc" : "desc";
+    }
+
+    loadFiles();
+    updateSortIndicators();
+  });
+});
 
 
 // fetch and display 
@@ -465,163 +591,177 @@ async function loadFiles() {
   const role = currentUser?.role || "guest";
   const isOperator = role === "operator";
 
-
   const query = new URLSearchParams({
-    include_deleted: includeDeleted,
+    include_deleted: includeDeleted ? "true" : "false",
     q: q,
     sort: currentSort,
-    dir: currentDir
+    dir: currentDir,
+    page: String(currentPage),
+    page_size: String(PAGE_SIZE),
   });
+
   if (statusVal) {
     query.set("status", statusVal);
   }
 
+  let data;
   try {
     const res = await fetch(`/api/files?${query.toString()}`, {
       credentials: 'include',
     });
     if (!res.ok) throw new Error(await res.text());
-    const files = await res.json();
 
-    tableBody.innerHTML = '';
-    fileCache = {};
-
-    const role = currentUser?.role || "viewer";
-    const isOperator = (role === "operator");
-
-    files.forEach(f => {
-      fileCache[f.id] = f;
-
-      const isDeleted = Number(f.is_deleted) === 1;
-      const isOut = !!f.currently_held_by;
-
-      // status badge
-      let statusBadgeHTML = "";
-      if (isDeleted) {
-        statusBadgeHTML = `<span class="badge badge-status-archived">Archived</span>`;
-      } else if (isOut) {
-        statusBadgeHTML = `<span class="badge badge-status-out">Checked out</span>`;
-      } else {
-        statusBadgeHTML = `<span class="badge badge-status-available">Available</span>`;
-      }
-
-      // clearance badge
-      const clearanceLevel = f.clearance_level;
-      let clearanceBadgeClass = "badge-clearance";
-      if (clearanceLevel === 1) clearanceBadgeClass = "badge-clearance-1";
-      else if (clearanceLevel === 2) clearanceBadgeClass = "badge-clearance-2";
-      else if (clearanceLevel === 3) clearanceBadgeClass = "badge-clearance-3";
-      else if (clearanceLevel === 4) clearanceBadgeClass = "badge-clearance-4";
-
-      const clearanceBadgeHTML =
-        `<span class="badge ${clearanceBadgeClass}">L${clearanceLevel}</span>`;
-
-      const createdDisplay   = formatTimestamp(f.created_at);
-      const checkoutDisplay  = formatTimestamp(f.date_of_checkout);
-      const prevCheckoutDisp = formatTimestamp(f.date_of_previous_checkout);
-
-      // operator-only actions
-      const checkoutButtons = (() => {
-  if (!isOperator) {
-    // guest / viewer: cannot move files at all
-    return "—";
-  }
-  if (isDeleted) {
-    return "—";
-  }
-  if (isOut) {
-  return `<button class="table-btn btn-return" onclick="openReturnModal(${f.id})">Return</button>`;
-} else {
-  return `<button class="table-btn btn-checkout" onclick="openCheckoutModal(${f.id})">Check Out</button>`;
-}
-})();
-
-  const lifecycleButtons = (() => {
-    if (!isOperator) {
-      // guest / viewer: cannot delete/restore
-      return "—";
-    }
-    if (isDeleted) {
-      return `<button class="table-btn btn-restore" onclick="restoreFile(${f.id})">Restore</button>`;
-    } else {
-      return `<button class="table-btn btn-delete" onclick="deleteFile(${f.id})">Delete</button>`;
-    }
-  })();
-
-  const editButtonHTML = (() => {
-    if (!isOperator) {
-      // guest / viewer: can't edit metadata
-      return "—";
-    }
-    return `
-      <button class="icon-btn" onclick="openEditModal(${f.id}); event.stopPropagation();"
-        title="Edit file">
-        ✎
-      </button>
-    `;
-  })();
-
-      const row = document.createElement('tr');
-
-      row.addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON') return;
-        openFileDetails(f.id);
-      });
-
-      row.classList.add('row-clickable');
-      if (isDeleted) {
-        row.classList.add('row-deleted');
-      }
-
-      row.innerHTML = `
-        <td class="cell-name">${f.name}</td>
-        <td>${f.system_number}-${f.shelf}</td>
-        <td>${clearanceBadgeHTML}</td>
-        <td>${statusBadgeHTML}</td>
-        <td>${f.added_by}</td>
-        <td>${createdDisplay}</td>
-        <td>${f.currently_held_by || '—'}</td>
-        <td>${checkoutDisplay}</td>
-        <td>${prevCheckoutDisp}</td>
-        <td>${f.tag || ''}</td>
-        <td>${f.note || ''}</td>
-        <td class="col-actions">${lifecycleButtons}</td>
-        <td class="cell-move">${checkoutButtons}</td>
-        <td class="cell-edit">${editButtonHTML}</td>
-      `;
-
-      tableBody.appendChild(row);
-    });
-
-    // footer stats (operator can see deleted, viewer can't)
-    const allRes = await fetch(`/api/files?include_deleted=true`, {
-      credentials: 'include',
-    });
-    const allFiles = await allRes.json();
-
-    const activeCount = allFiles.filter(f => Number(f.is_deleted) === 0).length;
-    const archivedCount = allFiles.filter(f => Number(f.is_deleted) === 1).length;
-    const totalCount = allFiles.length;
-
-    const activeLabel =
-      `${activeCount} active file${activeCount === 1 ? '' : 's'}`;
-    const archivedLabel =
-      `${archivedCount} archived`;
-    const totalLabel =
-      `${totalCount} total`;
-
-    document.getElementById('footerActiveCount').textContent = activeLabel;
-    document.getElementById('footerArchivedCount').textContent = archivedLabel;
-    document.getElementById('footerTotalCount').textContent = totalLabel;
-
-    document.getElementById('tableFooter').classList.add('show');
-
+    // IMPORTANT: after pagination backend, this is now an object
+    data = await res.json();
+    // expected: { items: [...], page, page_size, total }
   } catch (err) {
     console.error(err);
     alert('Failed to load files: ' + err.message);
+    return;
   }
-}
 
+  // fallbacks in case backend doesn't send something
+  const items     = data.items     || [];
+  const page      = data.page      || currentPage;
+  const pageSize  = data.page_size || PAGE_SIZE;
+  const total     = data.total     ?? items.length;
+
+  // cache + render rows
+  tableBody.innerHTML = '';
+  fileCache = {};
+
+  items.forEach(f => {
+    fileCache[f.id] = f;
+
+    const isDeleted = Number(f.is_deleted) === 1;
+    const isOut = !!f.currently_held_by;
+
+    // status badge
+    let statusBadgeHTML = "";
+    if (isDeleted) {
+      statusBadgeHTML = `<span class="badge badge-status-archived">Archived</span>`;
+    } else if (isOut) {
+      statusBadgeHTML = `<span class="badge badge-status-out">Checked out</span>`;
+    } else {
+      statusBadgeHTML = `<span class="badge badge-status-available">Available</span>`;
+    }
+
+    // clearance badge
+    const clearanceLevel = f.clearance_level;
+    let clearanceBadgeClass = "badge-clearance";
+    if (clearanceLevel === 1) clearanceBadgeClass = "badge-clearance-1";
+    else if (clearanceLevel === 2) clearanceBadgeClass = "badge-clearance-2";
+    else if (clearanceLevel === 3) clearanceBadgeClass = "badge-clearance-3";
+    else if (clearanceLevel === 4) clearanceBadgeClass = "badge-clearance-4";
+
+    const clearanceBadgeHTML =
+      `<span class="badge ${clearanceBadgeClass}">L${clearanceLevel}</span>`;
+
+    const createdDisplay = formatTimestamp(f.created_at);
+
+    let prevCheckoutDisp = "—"; // default = nothing to show
+
+    if (f.currently_held_by) {
+      // Item is currently OUT.
+      // We expect to have f.date_of_checkout for this active movement.
+      if (f.date_of_checkout) {
+        prevCheckoutDisp = `
+          <span style="color:#a11; font-weight:500;">↗</span>
+          ${formatTimestamp(f.date_of_checkout)}
+        `;
+      }
+    } else {
+      // Item is currently IN.ß
+      // Only show green arrow if we actually have a recorded return.
+      // Depending on what you're returning from the API, use either:
+      //   f.last_return_at   (if you expose "last time it was returned")
+      // OR
+      //   f.last_movement_ts (if you use the CASE expression)
+      const lastReturnTs = f.last_return_at || f.last_movement_ts;
+
+      if (lastReturnTs) {
+        prevCheckoutDisp = `
+          <span style="color:#145d2e; font-weight:500;">↘</span>
+          ${formatTimestamp(lastReturnTs)}
+        `;
+      }
+    }
+    // operator-only actions
+    const checkoutButtons = (() => {
+      if (!isOperator) {
+        return "—";
+      }
+      if (isDeleted) {
+        return "—";
+      }
+      if (isOut) {
+        return `<button class="table-btn btn-return" onclick="openReturnModal(${f.id})">Return</button>`;
+      } else {
+        return `<button class="table-btn btn-checkout" onclick="openCheckoutModal(${f.id})">Check Out</button>`;
+      }
+    })();
+
+    const lifecycleButtons = (() => {
+      if (!isOperator) {
+        return "—";
+      }
+      if (isDeleted) {
+        return `<button class="table-btn btn-restore" onclick="restoreFile(${f.id})">Restore</button>`;
+      } else {
+        return `<button class="table-btn btn-delete" onclick="deleteFile(${f.id})">Delete</button>`;
+      }
+    })();
+
+    const editButtonHTML = (() => {
+      if (!isOperator) {
+        return "—";
+      }
+      return `
+        <button class="icon-btn" onclick="openEditModal(${f.id}); event.stopPropagation();"
+          title="Edit file">
+          ✎
+        </button>
+      `;
+    })();
+
+    const row = document.createElement('tr');
+
+    row.addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      openFileDetails(f.id);
+    });
+
+    row.classList.add('row-clickable');
+    if (isDeleted) {
+      row.classList.add('row-deleted');
+    }
+
+    row.innerHTML = `
+      <td class="cell-name">${f.name}</td>
+      <td>${f.system_number}-${f.shelf}</td>
+      <td>${clearanceBadgeHTML}</td>
+      <td>${statusBadgeHTML}</td>
+      <td>${f.added_by}</td>
+      <td>${createdDisplay}</td>
+      <td>${f.currently_held_by || '—'}</td>
+      <td>${formatTimestamp(f.date_of_checkout)}</td>
+      <td>${prevCheckoutDisp}</td>
+      <td>${f.tag || ''}</td>
+      <td>${f.note || ''}</td>
+      <td class="col-actions">${lifecycleButtons}</td>
+      <td class="cell-move">${checkoutButtons}</td>
+      <td class="cell-edit">${editButtonHTML}</td>
+    `;
+
+    tableBody.appendChild(row);
+  });
+
+  // update footer stats
+  await updateFooterStats();
+
+  // update pagination UI
+  updatePagerUI(page, pageSize, total);
+}
 
 async function deleteFile(id) {
   if (!confirm("Soft-delete this file? It can be restored later.")) return;
@@ -636,6 +776,7 @@ async function deleteFile(id) {
   }
   await loadFiles();
 }
+
 
 
 async function restoreFile(id) {
@@ -1200,3 +1341,6 @@ document.querySelectorAll('th.sortable').forEach(th => {
   await loadFiles();
   updateSortIndicators();
 })();
+
+
+

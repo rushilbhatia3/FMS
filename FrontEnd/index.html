@@ -55,34 +55,57 @@
   </div>
 </div>
 
+<main class="app-main">
+    <!-- Table list -->
+    <div class="table-scroll-region">
+      <table id="fileTable" class="file-table">
+        <thead class="file-table-head">
+          <tr>
+            <th class="sortable col-name" data-sort="name">Name <span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="location">Location<span class="sort-indicator"></span></th>
+            <th class="sortable col-actions" data-sort="clearance_level">Clearance<span class="sort-indicator"></span></th>
+            <th>Status</th>
+            <th class="col-note">Added By</th>
+            <th class="sortable" data-sort="created_at">Date Added<span class="sort-indicator"></span></th>
+            <th>Held By</th>
+            <th>Checkout</th>
+            <th class="sortable" data-sort="prev_checkout">Last Seen<span class="sort-indicator"></span></th>
+            <th>Tag</th>
+            <th class="col-note">Note</th>
+            <th class="col-actions">Actions</th>
+            <th class="cell-move">Checkout</th>
+            <th class="cell-edit">Edit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- rows injected by JS -->
+        </tbody>
+      </table>
+    </div>
 
-  <!-- Table list from file_status view -->
-   <div class="table-scroll-region">
-    <table id="fileTable" class="file-table">
-    <thead class="file-table-head">
-    <tr>
-      <th class="sortable col-name" data-sort="name">Name <span class="sort-indicator"></span></th>
-      <th class="sortable" data-sort="location">Location<span class="sort-indicator"></span></th>
-      <th class="sortable col-actions" data-sort="clearance_level">Clearance<span class="sort-indicator"></span></th>
-      <th>Status</th>
-      <th class="col-note">Added By</th>
-      <th class="sortable" data-sort="created_at">Date Added<span class="sort-indicator"></span></th>
-      <th>Held By</th>
-      <th>Checkout</th>
-      <th class="sortable" data-sort="prev_checkout">Previous Checkout <span class="sort-indicator"></span></th>
-      <th>Tag</th>
-      <th class="col-note">Note</th>
-      <th class="col-actions">Actions</th>
-      <th class="cell-move">Checkout</th>
-      <th class="cell-edit">Edit</th>
-    </tr>
-    </thead>
+    
 
-    <tbody>
-      <!-- rows injected by JS -->
-    </tbody>
-  </table>
-</div>
+    <!-- Table Footer -->
+    <div id="tableFooter" class="table-footer">
+      <div class="table-footer-inner">
+        <span id="footerActiveCount"></span>
+        <span class="footer-separator">•</span>
+        <span id="footerArchivedCount"></span>
+        <span class="footer-separator">•</span>
+        <span id="footerTotalCount"></span>
+
+        <div id="pagerBar" class="pager-bar">
+    <button id="prevPageBtn" class="table-btn" type="button">Prev</button>
+
+    <span id="pagerStatus" class="pager-status">
+      Page 1 of 1
+    </span>
+
+    <button id="nextPageBtn" class="table-btn" type="button">Next</button>
+  </div>
+      </div>
+    </div>
+  </main>
 
 <!-- Checkout / Checkin Modal -->
 <div id="checkoutModal" class="modal">
@@ -598,18 +621,6 @@
   </div>
 </div>
 
-<!-- Table Footer -->
-<div id="tableFooter" class="table-footer">
-  <div class="table-footer-inner">
-    <span id="footerActiveCount"></span>
-    <span class="footer-separator">•</span>
-    <span id="footerArchivedCount"></span>
-    <span class="footer-separator">•</span>
-    <span id="footerTotalCount"></span>
-  </div>
-</div>
-
-
 <!-- login / logout modal -->
  <div id="sessionModal" class="session-modal">
   <div class="session-card">
@@ -718,8 +729,6 @@
     </div>
   </div>
 </div>
-
-
 
 
 </body>
