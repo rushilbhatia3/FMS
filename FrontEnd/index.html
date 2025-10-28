@@ -47,6 +47,11 @@
     <button id="openAddFileBtn" class="btn btn-primary btn-compact">
       Add File
     </button>
+
+    <div class="session-user-shell">
+      <span id="sessionUserInfo" class="session-user-info"></span>
+      <button id="logoutBtn" class="btn btn-ghost-small" type="button">Log out</button>
+    </div>
   </div>
 </div>
 
@@ -603,6 +608,118 @@
     <span id="footerTotalCount"></span>
   </div>
 </div>
+
+
+<!-- login / logout modal -->
+ <div id="sessionModal" class="session-modal">
+  <div class="session-card">
+    <div class="session-card-header">
+      <h2 class="session-card-title">File Access</h2>
+      <p class="session-card-desc">Choose your role and sign in.</p>
+    </div>
+
+    <!-- Role tabs -->
+    <div class="session-tabs">
+      <button id="sessionTabOperator" class="session-tab session-tab-active" type="button">
+        Operator
+      </button>
+      <button id="sessionTabViewer" class="session-tab" type="button">
+        Viewer
+      </button>
+      
+    </div>
+
+    <!-- Operator panel -->
+    <div id="sessionPanelOperator" class="session-panel session-panel-active">
+      <form id="sessionOperatorForm" class="session-form" autocomplete="off">
+        <label class="session-field">
+          <span class="session-label">Email</span>
+          <input
+            type="email"
+            id="opEmail"
+            class="session-input"
+            placeholder="operator@example.com"
+            required
+          />
+        </label>
+
+        <label class="session-field">
+          <span class="session-label">Password</span>
+          <input
+            type="password"
+            id="opPassword"
+            class="session-input"
+            placeholder="••••••••"
+            required
+          />
+        </label>
+
+        <div id="opError" class="session-error" role="alert"></div>
+
+        <div class="session-actions">
+          <button
+            id="opSignInBtn"
+            type="submit"
+            class="btn btn-primary wide-btn"
+          >
+            Sign in as Operator
+          </button>
+        </div>
+        <div class="guest-login-row">
+        <button id="guestBtn" class="btn btn-primary wide-btn" style="width:100%;">
+          Continue as Guest (read-only)
+        </button>
+      </div>
+      </form>
+    </div>
+
+    <!-- Viewer panel -->
+    <div id="sessionPanelViewer" class="session-panel">
+      <form id="sessionViewerForm" class="session-form" autocomplete="off">
+        <label class="session-field">
+          <span class="session-label">Email</span>
+          <input
+            type="email"
+            id="viewerEmail"
+            class="session-input"
+            placeholder="viewer@example.com"
+            required
+          />
+        </label>
+
+        <label class="session-field">
+          <span class="session-label">Password</span>
+          <input
+            type="password"
+            id="viewerPassword"
+            class="session-input"
+            placeholder="••••••••"
+            required
+          />
+        </label>
+
+        <div id="viewerError" class="session-error" role="alert"></div>
+
+        <div class="session-actions">
+          <button
+            id="viewerSignInBtn"
+            type="submit"
+            class="btn btn-primary wide-btn"
+          >
+            Sign in as Viewer
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="session-hint">
+      Access is logged. Operator mode can move, edit, and archive files.
+    </div>
+  </div>
+</div>
+
+
+
 
 </body>
 </html>

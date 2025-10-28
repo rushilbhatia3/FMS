@@ -1,12 +1,18 @@
 import csv
 from typing import Optional, Sequence, Tuple, Any
 import zipfile
-from fastapi import FastAPI, HTTPException, status, Path, Body, Query, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, Response, status, Path, Body, Query, UploadFile, File
 import sqlite3, io, openpyxl
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
 from maintenance import router as maintenance_router
+from auth import router as auth_router
 from db import db_read, db_write
+
+from auth import (
+    get_current_user,
+    require_operator,
+)
 
 DB_PATH = "Database/Database.db"
 app=FastAPI()
@@ -174,49 +180,58 @@ def innitDB():
 
 @app.post("/api/add_file")
 def add_file(
+    request: Request,
     name: str = Body(...),
     system_number: str = Body(...),
     shelf: str = Body(...),
     clearance_level: int = Body(..., ge=1, le=4),
-
     size_label: str | None = Body(None),
     type_label: str | None = Body(None),
     tag: str | None = Body(None),
     note: str | None = Body(None),
-
     added_by: str = Body("operator"),
 ):
+    # auth
+    user = get_current_user(request)
+    require_operator(user)
 
-    clean_name = name.strip() if name else ""
+    # who is performing the add (use email from session)
+    operator_name = (user.get("email") or "operator").strip()
+
+    # validations
+    clean_name = (name or "").strip()
     if not clean_name:
-        raise HTTPException(status_code=400, detail="File name cannot be empty.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File name cannot be empty."
+        )
 
-    clean_system_number = system_number.strip() if system_number else ""
-    clean_shelf = shelf.strip() if shelf else ""
+    clean_system_number = (system_number or "").strip()
+    clean_shelf = (shelf or "").strip()
     if not clean_system_number or not clean_shelf:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="System number and shelf are required."
         )
 
     if clearance_level not in (1, 2, 3, 4):
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Clearance level must be between 1 and 4."
         )
 
     def _norm(x: str | None) -> str | None:
         if x is None:
             return None
-        val = x.strip()
-        return val if val != "" else None
+        v = x.strip()
+        return v if v else None
 
     size_label_norm = _norm(size_label)
     type_label_norm = _norm(type_label)
     tag_norm        = _norm(tag)
     note_norm       = _norm(note)
-    added_by_norm   = (added_by.strip() or "operator") if added_by is not None else "operator"
 
+    # insert
     sql = """
         INSERT INTO files (
             name,
@@ -247,39 +262,70 @@ def add_file(
         clean_system_number,
         clean_shelf,
         clearance_level,
-        added_by_norm,
+        operator_name,
     )
 
     try:
         new_id = db_write(sql, params)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"DB insert failed: {e}")
+        print("DB insert failed in /api/add_file:", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create file record."
+        )
 
     return {
         "id": new_id,
         "name": clean_name,
-        "system_number": clean_system_number,
-        "shelf": clean_shelf,
+        "location": {
+            "system_number": clean_system_number,
+            "shelf": clean_shelf,
+        },
         "clearance_level": clearance_level,
-        "added_by": added_by_norm,
+        "added_by": operator_name,
         "status": "created"
     }
 
 
 @app.get("/api/files")
 def list_files(
+    request: Request,
     include_deleted: bool = Query(False),
     q: str = Query("", alias="q"),
     sort: str = Query("created_at"),
     dir: str = Query("desc"),
-    status: Optional[str] = Query(None)
+    status: Optional[str] = Query(None),
 ):
-    q = q.strip()
+    """
+    List files for the table view.
 
-    where_clauses = []
+    Auth:
+    - viewer: can list active files
+    - operator: same, plus may include deleted (`include_deleted=true`)
+
+    Security:
+    - viewers are NEVER allowed to see deleted/archived rows
+      even if they try to set include_deleted=true manually.
+    """
+
+    # 1. authn
+    user = get_current_user(request)
+    if user is None:
+        # treat as guest viewer
+        role = "guest"
+    else:
+        role = user.get("role", "viewer")
+
+    # viewers are not allowed to request deleted items
+    # if they try include_deleted=true, we silently override to False
+    effective_include_deleted = include_deleted if role == "operator" else False
+
+    # sanitize search and start building filters
+    q = q.strip()
+    where_clauses: list[str] = []
     params: list[Any] = []
 
-    # allowlisted sort columns
+    # 3. allowlisted sort columns
     allowed_sorts = {
         "name": "LOWER(f.name)",
         "created_at": "f.created_at",
@@ -287,16 +333,16 @@ def list_files(
         "clearance_level": "f.clearance_level",
         "shelf": "f.shelf",
     }
-
     sort_col = allowed_sorts.get(sort, "f.created_at")
+
     sort_dir = "ASC" if dir.lower() == "asc" else "DESC"
 
     #
-    # 1. Status logic
+    # 4. status filter logic
     #
-    # "available"   -> active (not deleted), not checked out
-    # "out"         -> active (not deleted), currently checked out
-    # None/other    -> normal mode
+    # status="available": not deleted, not checked out
+    # status="out":       not deleted, checked out
+    # None:               normal (respect include_deleted/effective_include_deleted)
     #
     status_mode = False
     if status == "available":
@@ -310,39 +356,41 @@ def list_files(
         where_clauses.append("fs.currently_held_by IS NOT NULL")
 
     else:
-        # normal mode: respect include_deleted
-        if not include_deleted:
+        # normal mode
+        if not effective_include_deleted:
             where_clauses.append("f.is_deleted = 0")
 
     #
-    # 2. Search filter
+    # 5. search filter
     #
     if q:
         like_param = f"%{q.lower()}%"
-        where_clauses.append("""
-        (
-            LOWER(f.name)                LIKE ?
-         OR LOWER(f.tag)                 LIKE ?
-         OR LOWER(f.system_number)       LIKE ?
-         OR LOWER(f.shelf)               LIKE ?
-         OR LOWER(fs.currently_held_by)  LIKE ?
+        where_clauses.append(
+            """
+            (
+                LOWER(f.name)               LIKE ?
+             OR LOWER(f.tag)                LIKE ?
+             OR LOWER(f.system_number)      LIKE ?
+             OR LOWER(f.shelf)              LIKE ?
+             OR LOWER(fs.currently_held_by) LIKE ?
+            )
+            """
         )
-        """)
         params.extend([like_param, like_param, like_param, like_param, like_param])
 
+    # build WHERE clause text
     where_sql = ""
     if where_clauses:
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
     #
-    # 3. ORDER BY behavior
+    # 6. ORDER BY logic
     #
-    # If we're in status mode (available/out), we bias active "working set"
-    # to the top in a predictable way (non-deleted first).
-    #
-    # Otherwise (normal browsing mode), we do NOT force deleted rows to bottom.
-    # We simply sort by the chosen column, so "Show deleted" acts like
-    # lifting a filter, not changing the order semantics.
+    # If we're filtering by status ("available" / "out"), we add a secondary
+    # sort to keep "active/not deleted" grouped predictably. Otherwise we just
+    # sort per user request. We do NOT force deleted rows to the bottom in
+    # normal browsing anymore, so when an operator toggles "show deleted"
+    # those archived rows just appear in-line according to sort.
     #
     if status_mode:
         order_sql = f"""
@@ -358,6 +406,9 @@ def list_files(
           f.id DESC
         """
 
+    #
+    # 7. run query
+    #
     sql = f"""
     SELECT
         f.id                         AS id,
@@ -376,7 +427,6 @@ def list_files(
         fs.currently_held_by         AS currently_held_by,
         fs.date_of_checkout          AS date_of_checkout,
         fs.date_of_previous_checkout AS date_of_previous_checkout
-
     FROM files f
     LEFT JOIN file_status fs
       ON fs.file_id = f.id
@@ -385,15 +435,40 @@ def list_files(
     """
 
     rows = db_read(sql, params)
-    return [dict(row) for row in rows]
+    result = [dict(row) for row in rows]
+
+    #
+    # 8. final safety pass on response for viewers
+    #
+    # For a "viewer", we should:
+    #   - hide `deleted_at`
+    #   - hide `is_deleted`
+    #   - (optional) hide `added_by` or `note` if those are considered internal
+    #
+    # For now we’ll only scrub deletion metadata.
+    #
+    if role != "operator":
+        for r in result:
+            r.pop("deleted_at", None)
+            r.pop("is_deleted", None)
+
+    return result
 
 @app.delete("/api/files/{file_id}")
-def soft_delete_file(file_id: int):
-    # Existence check
+def soft_delete_file(
+    file_id: int,
+    request: Request,
+):
+    # auth
+    user = get_current_user(request)
+    require_operator(user)
+
+    # does file exist?
     row = db_read("SELECT id, is_deleted FROM files WHERE id = ?", (file_id,))
     if not row:
         raise HTTPException(status_code=404, detail="File not found.")
 
+    # is it currently checked out?
     open_co = db_read("""
         SELECT holder_name, checkout_at
         FROM checkouts
@@ -407,12 +482,12 @@ def soft_delete_file(file_id: int):
             detail=f"Cannot delete: file is currently checked out by {holder} since {ts}."
         )
 
-    # No-op if already deleted
+    # already deleted? just echo state
     if row[0]["is_deleted"] == 1:
         deleted = db_read("SELECT deleted_at FROM files WHERE id = ?", (file_id,))
         return {"id": file_id, "deleted": True, "deleted_at": deleted[0]["deleted_at"]}
 
-    # Perform soft delete
+    # soft delete now
     db_write(
         "UPDATE files SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = ?",
         (file_id,)
@@ -422,7 +497,14 @@ def soft_delete_file(file_id: int):
 
 # RESTORE
 @app.patch("/api/files/{file_id}/restore")
-def restore_file(file_id: int):
+def restore_file(
+    file_id: int,
+    request: Request,
+):
+    # auth
+    user = get_current_user(request)
+    require_operator(user)
+
     row = db_read("SELECT id, is_deleted FROM files WHERE id = ?", (file_id,))
     if not row:
         raise HTTPException(status_code=404, detail="File not found.")
@@ -437,13 +519,16 @@ def restore_file(file_id: int):
     return {"id": file_id, "restored": True}
 
 @app.get("/api/deleted_files")
-def list_deleted_files():
+def list_deleted_files(request: Request):
+    # auth
+    user = get_current_user(request)
+    require_operator(user)
+
     sql = """
     SELECT *
     FROM file_status fs
     JOIN files f ON f.id = fs.file_id
     WHERE f.is_deleted = 1;
-
     """
     return [dict(r) for r in db_read(sql)]
 
@@ -451,11 +536,21 @@ def list_deleted_files():
 @app.post("/api/files/{file_id}/checkout")
 def checkout_file(
     file_id: int,
-    holder_name: str = Body(...),
-    operator_name: str = Body("operator"),
-    note: Optional[str] = Body(None),
+    request: Request,
+    holder_name: str = Body(..., embed=False),
+    note: Optional[str] = Body(None, embed=False),
 ):
-    #file must exist
+    user = get_current_user(request)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated."
+        )
+
+    require_operator(user)
+
+    operator_name = (user.get("email") or "operator").strip()
+
     row = db_read(
         "SELECT id, is_deleted FROM files WHERE id = ?",
         (file_id,)
@@ -463,21 +558,19 @@ def checkout_file(
     if not row:
         raise HTTPException(status_code=404, detail="File not found.")
 
-    #can't check out a deleted file
     if row[0]["is_deleted"] == 1:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Cannot check out a deleted file."
         )
 
-    #name must not be empty/whitespace
-    if not holder_name.strip():
+    clean_holder = holder_name.strip() if holder_name else ""
+    if not clean_holder:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="holder_name is required."
         )
 
-    #not already be checked out
     open_co = db_read(
         """
         SELECT id FROM checkouts
@@ -488,73 +581,105 @@ def checkout_file(
     )
     if open_co:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="File is already checked out."
         )
 
-    #create new checkout record
-    #checkout_at defaults to CURRENT_TIMESTAMP, return_at defaults to NULL
-    checkout_id = db_write(
-        """
-        INSERT INTO checkouts (file_id, holder_name, operator_name, note)
-        VALUES (?, ?, ?, ?)
-        """,
-        (file_id, holder_name.strip(), operator_name, note)
-    )
+    try:
+        checkout_id = db_write(
+            """
+            INSERT INTO checkouts (file_id, holder_name, operator_name, note)
+            VALUES (?, ?, ?, ?)
+            """,
+            (file_id, clean_holder, operator_name, note),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"DB insert failed: {e}",
+        )
 
     return {
         "status": "checked_out",
-        "checkout_id": checkout_id,
         "file_id": file_id,
-        "holder_name": holder_name.strip()
+        "checkout_id": checkout_id,
+        "holder_name": clean_holder,
+        "operator_name": operator_name,
     }
 
 
 @app.patch("/api/files/{file_id}/return")
 def return_file(
     file_id: int,
-    operator_name: str = Body("operator"),
-    note: Optional[str] = Body(None),
+    request: Request,
+    note: Optional[str] = Body(None, embed=False),
 ):
-    #active checkout
-    row = db_read(
+    user = get_current_user(request)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated."
+        )
+
+    require_operator(user)
+
+    operator_name = (user.get("email") or "operator").strip()
+
+    file_row = db_read(
+        "SELECT id, is_deleted FROM files WHERE id = ?",
+        (file_id,)
+    )
+    if not file_row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found."
+        )
+
+    checkout_rows = db_read(
         """
         SELECT id, note
         FROM checkouts
-        WHERE file_id = ? AND return_at IS NULL
+        WHERE file_id = ?
+          AND return_at IS NULL
         ORDER BY checkout_at DESC
         LIMIT 1
         """,
-        (file_id,)
+        (file_id,),
     )
-    if not row:
+    if not checkout_rows:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail="No active checkout to return for this file."
         )
 
-    checkout_id = row[0]["id"]
-    prev_note = row[0]["note"]
+    checkout_id = checkout_rows[0]["id"]
+    prev_note = checkout_rows[0]["note"]
 
-    #if they added a note on return, we keep it. If not, we keep the old note.
     final_note = note if note is not None else prev_note
 
-    #close
-    db_write(
-        """
-        UPDATE checkouts
-        SET return_at = CURRENT_TIMESTAMP,
-            operator_name = ?,
-            note = ?
-        WHERE id = ?
-        """,
-        (operator_name, final_note, checkout_id)
-    )
+    try:
+        db_write(
+            """
+            UPDATE checkouts
+            SET
+                return_at     = CURRENT_TIMESTAMP,
+                operator_name = ?,
+                note          = ?
+            WHERE id = ?
+            """,
+            (operator_name, final_note, checkout_id),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"DB update failed: {e}",
+        )
 
     return {
         "status": "returned",
+        "file_id": file_id,
         "checkout_id": checkout_id,
-        "file_id": file_id
+        "operator_name": operator_name,
     }
 
 
@@ -624,6 +749,7 @@ def file_details(file_id: int):
 @app.patch("/api/files/{file_id}")
 def update_file(
     file_id: int,
+    request: Request,
     name: str = Body(...),
     size_label: Optional[str] = Body(None),
     type_label: Optional[str] = Body(None),
@@ -633,7 +759,10 @@ def update_file(
     shelf: str = Body(...),
     clearance_level: int = Body(..., ge=1, le=4),
 ):
-    #file exist?
+    # 0. auth
+    user = get_current_user(request)
+    require_operator(user)
+
     row = db_read(
         """
         SELECT id, is_deleted
@@ -644,7 +773,6 @@ def update_file(
     )
     if not row:
         raise HTTPException(status_code=404, detail="File not found.")
-
 
     clean_name = name.strip() if name else ""
     if not clean_name:
@@ -657,7 +785,6 @@ def update_file(
 
     if clearance_level not in (1, 2, 3, 4):
         raise HTTPException(status_code=400, detail="Clearance level must be between 1 and 4.")
-
 
     db_write(
         """
@@ -687,7 +814,6 @@ def update_file(
         ),
     )
 
-    # return confirmation + echo some of the new values.
     updated = db_read(
         """
         SELECT
@@ -714,6 +840,7 @@ def update_file(
         "updated": True,
         "file": dict(updated),
     }
+
     
 
 
@@ -810,26 +937,30 @@ def _rows_from_xlsx(data: bytes) -> list[dict]:
 
 
 @app.post("/api/import_file")
-def import_file(file: UploadFile = File(...)):
+def import_file(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    user = get_current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated.")
+    require_operator(user)
+
     filename = (file.filename or "").lower()
-    # Read raw bytes
+
     try:
         raw_bytes = file.file.read()
     except Exception:
         raise HTTPException(status_code=400, detail="Could not read uploaded file")
 
-    # Decide how to parse
-    rows_raw: list[dict]
     if filename.endswith(".csv"):
         try:
             text = raw_bytes.decode("utf-8", errors="replace")
         except Exception:
             raise HTTPException(status_code=400, detail="File is not valid UTF-8 text")
         rows_raw = _rows_from_csv(text)
-
     elif filename.endswith(".xlsx"):
         rows_raw = _rows_from_xlsx(raw_bytes)
-
     else:
         raise HTTPException(
             status_code=400,
@@ -843,7 +974,6 @@ def import_file(file: UploadFile = File(...)):
             "errors": ["No rows detected in file."]
         }
 
-    # We'll do a single transaction for speed.
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
@@ -855,7 +985,7 @@ def import_file(file: UploadFile = File(...)):
 
     try:
         cur = conn.cursor()
-        for idx, raw_row in enumerate(rows_raw, start=2):  # row 2 == first data row
+        for idx, raw_row in enumerate(rows_raw, start=2):
             try:
                 cleaned = _validate_and_normalize_row(raw_row)
 
@@ -896,8 +1026,9 @@ def import_file(file: UploadFile = File(...)):
     return {
         "imported": inserted,
         "failed": failed,
-        "errors": errors[:10],  # cap the error dump for response size
+        "errors": errors[:10],
     }
+
 
 
 #export file logic
@@ -1008,10 +1139,32 @@ def _export_checkouts_csv() -> io.StringIO:
     return buf
 
 @app.get("/api/export")
-def export_data(export_type: str = Query("all", alias="type")):
+def export_data(
+    request: Request,
+    export_type: str = Query("all", alias="type")
+):
+    """
+    Role rules:
+    - operator: can download anything
+    - viewer / guest: can ONLY download 'files'
+    """
+
+    # figure out who's calling
+    user = get_current_user(request)
+    role = user["role"] if user else "guest"
+
     export_type = export_type.lower().strip()
 
-    # 1) files only
+    # Enforce role restrictions
+    if role != "operator":
+        # viewer or guest
+        if export_type != "files":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to export that data."
+            )
+
+    # 1) files only (allowed for everyone)
     if export_type == "files":
         files_buf = _export_files_csv()
         return StreamingResponse(
@@ -1022,7 +1175,7 @@ def export_data(export_type: str = Query("all", alias="type")):
             },
         )
 
-    # 2) checkouts only
+    # 2) checkouts only (operator only, enforced above)
     elif export_type == "checkouts":
         checkouts_buf = _export_checkouts_csv()
         return StreamingResponse(
@@ -1033,13 +1186,11 @@ def export_data(export_type: str = Query("all", alias="type")):
             },
         )
 
-    # 3) everything -> zip
+    # 3) everything -> zip (operator only, enforced above)
     elif export_type == "all":
-        # build both CSVs in memory
         files_buf = _export_files_csv()
         checkouts_buf = _export_checkouts_csv()
 
-        # now create an in-memory ZIP archive
         zip_bytes = io.BytesIO()
         with zipfile.ZipFile(zip_bytes, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("files_export.csv", files_buf.getvalue())
@@ -1056,9 +1207,17 @@ def export_data(export_type: str = Query("all", alias="type")):
         )
 
     else:
-        raise HTTPException(status_code=400, detail="Invalid export type. Use files, checkouts, or all.")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid export type. Use files, checkouts, or all."
+        )
+
+
 
 innitDB()
-app.mount("/app", StaticFiles(directory="/Users/rushilb/Desktop/DBMS/FrontEnd", html=True), name="FrontEnd")
+
 
 app.include_router(maintenance_router)
+app.include_router(auth_router)
+
+app.mount("/app", StaticFiles(directory="/Users/rushilb/Desktop/DBMS/FrontEnd", html=True), name="FrontEnd")

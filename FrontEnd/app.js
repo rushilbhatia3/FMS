@@ -1,3 +1,277 @@
+//auth before everything 
+let currentUser = null;
+const guestBtn = document.getElementById('guestBtn');
+
+if (guestBtn) {
+  guestBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    // Guest mode is explicitly "not logged in".
+    // We do NOT call /api/session/login.
+    // We just set currentUser locally and apply role.
+    currentUser = { role: "guest" };
+
+    applyRoleUI();
+    updateHeaderUserInfo();  // will show "Guest (read-only)" if you added that text
+    hideSessionModal();
+    await loadFiles();
+  });
+}
+
+
+
+const sessionModalEl       = document.getElementById('sessionModal');
+const sessionTabOperator   = document.getElementById('sessionTabOperator');
+const sessionTabViewer     = document.getElementById('sessionTabViewer');
+const sessionPanelOperator = document.getElementById('sessionPanelOperator');
+const sessionPanelViewer   = document.getElementById('sessionPanelViewer');
+
+const opEmailEl    = document.getElementById('opEmail');
+const opPasswordEl = document.getElementById('opPassword');
+const opFormEl     = document.getElementById('sessionOperatorForm');
+const opErrorEl    = document.getElementById('opError');
+
+const viewerEmailEl    = document.getElementById('viewerEmail');
+const viewerPasswordEl = document.getElementById('viewerPassword');
+const viewerFormEl     = document.getElementById('sessionViewerForm');
+const viewerErrorEl    = document.getElementById('viewerError');
+
+const sessionUserInfoEl = document.getElementById('sessionUserInfo');
+const logoutBtn         = document.getElementById('logoutBtn');
+
+// tab switching
+function activateOperatorTab() {
+  sessionTabOperator.classList.add('session-tab-active');
+  sessionTabViewer.classList.remove('session-tab-active');
+
+  sessionPanelOperator.classList.add('session-panel-active');
+  sessionPanelViewer.classList.remove('session-panel-active');
+}
+function activateViewerTab() {
+  sessionTabViewer.classList.add('session-tab-active');
+  sessionTabOperator.classList.remove('session-tab-active');
+
+  sessionPanelViewer.classList.add('session-panel-active');
+  sessionPanelOperator.classList.remove('session-panel-active');
+}
+
+sessionTabOperator.addEventListener('click', activateOperatorTab);
+sessionTabViewer.addEventListener('click', activateViewerTab);
+
+// helper: show/hide full overlay
+function showSessionModal() {
+  sessionModalEl.style.display = 'flex';
+}
+function hideSessionModal() {
+  sessionModalEl.style.display = 'none';
+}
+
+// update header user info + logout visibility
+function updateHeaderUserInfo() {
+  if (!currentUser) {
+    sessionUserInfoEl.textContent = "";
+    if (logoutBtn) logoutBtn.style.display = "none";
+    return;
+  }
+  sessionUserInfoEl.textContent = `${currentUser.email} (${currentUser.role})`;
+  if (logoutBtn) logoutBtn.style.display = "";
+}
+// login submit (operator)
+opFormEl.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  opErrorEl.textContent = "";
+
+  const email = opEmailEl.value.trim();
+  const password = opPasswordEl.value;
+
+  try {
+    const res = await fetch('/api/session/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password })
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      opErrorEl.textContent = "Sign-in failed.";
+      return;
+    }
+
+    // success
+    await fetchSession();         // sets currentUser + applyRoleUI()
+    updateHeaderUserInfo();
+    hideSessionModal();
+    await loadFiles();
+
+  } catch (err) {
+    opErrorEl.textContent = "Network error.";
+  }
+});
+
+// login submit (viewer)
+viewerFormEl.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  viewerErrorEl.textContent = "";
+
+  const email = viewerEmailEl.value.trim();
+  const password = viewerPasswordEl.value;
+
+  try {
+    const res = await fetch('/api/session/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password })
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      viewerErrorEl.textContent = "Sign-in failed.";
+      return;
+    }
+
+    // success
+    await fetchSession();
+    updateHeaderUserInfo();
+    hideSessionModal();
+    await loadFiles();
+
+  } catch (err) {
+    viewerErrorEl.textContent = "Network error.";
+  }
+});
+
+// logout
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', async () => {
+    try {
+      await fetch('/api/session/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      // ignore network fail, we'll still clear local state
+    }
+    currentUser = null;
+    applyRoleUI();
+    updateHeaderUserInfo();
+    showSessionModal();
+    await loadFiles();
+  });
+}
+
+
+async function fetchSession() {
+  try {
+    const res = await fetch('/api/session/me', {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      // guest mode
+      currentUser = { role: "guest" };
+      applyRoleUI();
+      return;
+    }
+
+    const data = await res.json();
+    currentUser = {
+      email: data.email,
+      role: data.role,
+    };
+    applyRoleUI();
+
+  } catch (err) {
+    console.error("fetchSession failed:", err);
+    currentUser = { role: "guest" };
+    applyRoleUI();
+  }
+}
+
+// this controls what a viewer can/can't do in the UI
+function applyRoleUI() {
+  const role = currentUser?.role || "guest";
+  const isOperator = role === "operator";
+  const isViewer = role === "viewer";
+  const isGuest = role === "guest";
+
+  // --- Add File button / Import tab ---
+  if (openAddFileBtn) {
+    if (isOperator) {
+      openAddFileBtn.disabled = false;
+      openAddFileBtn.style.opacity = "";
+      openAddFileBtn.style.pointerEvents = "";
+    } else {
+      // viewer + guest can’t open this modal
+      openAddFileBtn.disabled = true;
+      openAddFileBtn.style.opacity = "0.5";
+      openAddFileBtn.style.pointerEvents = "none";
+    }
+  }
+
+  // If you have "Import" tab / CSV upload stuff in that same modal,
+  // you can hide the tab for non-operators:
+  if (tabImportBtn) {
+    tabImportBtn.style.display = isOperator ? "" : "none";
+  }
+
+  // --- Show Deleted checkbox ---
+  if (showDeletedEl) {
+    if (isOperator) {
+      showDeletedEl.disabled = false;
+      showDeletedEl.style.opacity = "";
+      showDeletedEl.style.pointerEvents = "";
+    } else {
+      showDeletedEl.checked = false;
+      showDeletedEl.disabled = true;
+      showDeletedEl.style.opacity = "0.5";
+      showDeletedEl.style.pointerEvents = "none";
+    }
+  }
+
+  // --- Export button/modal ---
+  // Behavior you asked for:
+  // - guest: no export at all (hide button)
+  // - viewer: can open export but ONLY "files" option should be selectable
+  // - operator: full export menu
+
+  if (exportOpenBtn) {
+    if (isGuest) {
+      exportOpenBtn.style.display = "none";
+    } else {
+      exportOpenBtn.style.display = "";
+    }
+  }
+
+  // We'll also restrict the export modal's radio buttons when it opens.
+  // We'll handle that below in openExportModal().
+
+  // --- Logout button visibility ---
+  if (logoutBtn) {
+    if (isGuest) {
+      // guest isn't "logged in", so hide logout
+      logoutBtn.style.display = "none";
+    } else {
+      logoutBtn.style.display = "";
+    }
+  }
+
+  // --- Header user text ---
+  // your updateHeaderUserInfo() already handles this using currentUser,
+  // but if you want guest to say "Guest (read-only)" you can tweak:
+  if (isGuest) {
+    sessionUserInfoEl.textContent = "Guest (read-only)";
+  }
+}
+
+
+
+//end auth
+
+
+
 let fileCache = {};
 
 let currentSort = "created_at";
@@ -89,43 +363,56 @@ const exportCancelBtn = document.getElementById('exportCancelBtn');
 const exportConfirmBtn = document.getElementById('exportConfirmBtn');
 
 const statusFilterEl = document.getElementById('statusFilter');
-
+ if (statusFilterEl) {
+      statusFilterEl.addEventListener('change', () => {
+        loadFiles();
+      });
+}
 
 
 //time management
 function formatTimestamp(ts) {
-  //empty return
   if (!ts) return "—";
 
-  let normalized = ts.trim();
-  if (normalized.includes(" ")) {
-    // "2025-10-27 14:22:05" -> "2025-10-27T14:22:05"
-    normalized = normalized.replace(" ", "T");
-  }
-
+  // normalize "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DDTHH:MM:SSZ" (treat as UTC-ish)
+  let normalized = ts.trim().replace(" ", "T");
   if (!/Z$/.test(normalized) && !/[+-]\d\d:\d\d$/.test(normalized)) {
-    normalized = normalized + "Z";
+    normalized += "Z";
   }
 
   const d = new Date(normalized);
   if (isNaN(d.getTime())) {
-    // fallback: if parsing failed, just show raw
-    return ts;
+    return ts; // fallback raw
   }
 
-  const day = d.getDate(); // 1-31
+  const day = d.getDate();
   const monthNamesShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const month = monthNamesShort[d.getMonth()];
   const year = d.getFullYear();
 
-  // Hours/minutes zero-padded
-  let hours = d.getHours();
-  let minutes = d.getMinutes();
-  if (hours < 10) {hours = "0" + hours; time="AM"}
-  if(hours>12){hours=hours-12; time="PM"}
-  if (minutes < 10) minutes = "0" + minutes;
+  let hours24 = d.getHours();            // 0-23
+  let minutes = d.getMinutes();          // 0-59
 
-  return `${day} ${month} ${year}, ${hours}:${minutes} ${time}`;
+  let suffix = "AM";
+  let hours12 = hours24;
+
+  if (hours24 === 0) {
+    hours12 = 12;
+    suffix = "AM";
+  } else if (hours24 === 12) {
+    hours12 = 12;
+    suffix = "PM";
+  } else if (hours24 > 12) {
+    hours12 = hours24 - 12;
+    suffix = "PM";
+  } else {
+    suffix = "AM";
+  }
+
+  const hh = hours12.toString().padStart(2, "0");
+  const mm = minutes.toString().padStart(2, "0");
+
+  return `${day} ${month} ${year}, ${hh}:${mm} ${suffix}`;
 }
 
 
@@ -175,53 +462,70 @@ async function loadFiles() {
   const q = searchInputEl ? searchInputEl.value.trim() : "";
   const statusVal = statusFilterEl ? statusFilterEl.value : "";
 
+  const role = currentUser?.role || "guest";
+  const isOperator = role === "operator";
+
+
   const query = new URLSearchParams({
     include_deleted: includeDeleted,
     q: q,
     sort: currentSort,
     dir: currentDir
   });
-
   if (statusVal) {
     query.set("status", statusVal);
   }
 
   try {
-    const res = await fetch(`/api/files?${query.toString()}`);
+    const res = await fetch(`/api/files?${query.toString()}`, {
+      credentials: 'include',
+    });
     if (!res.ok) throw new Error(await res.text());
     const files = await res.json();
 
     tableBody.innerHTML = '';
     fileCache = {};
+
+    const role = currentUser?.role || "viewer";
+    const isOperator = (role === "operator");
+
     files.forEach(f => {
-    fileCache[f.id] = f;
-    const isDeleted = Number(f.is_deleted) === 1;
-    const isOut = !!f.currently_held_by;
+      fileCache[f.id] = f;
 
-    let statusBadgeHTML = "";
-    if (isDeleted) {
-      statusBadgeHTML = `<span class="badge badge-status-archived">Archived</span>`;
-    } else if (isOut) {
-      statusBadgeHTML = `<span class="badge badge-status-out">Checked out</span>`;
-    } else {
-      statusBadgeHTML = `<span class="badge badge-status-available">Available</span>`;
-    }
+      const isDeleted = Number(f.is_deleted) === 1;
+      const isOut = !!f.currently_held_by;
 
-    const clearanceLevel = f.clearance_level;
-    let clearanceBadgeClass = "badge-clearance";
-    if (clearanceLevel === 1) clearanceBadgeClass = "badge-clearance-1";
-    else if (clearanceLevel === 2) clearanceBadgeClass = "badge-clearance-2";
-    else if (clearanceLevel === 3) clearanceBadgeClass = "badge-clearance-3";
-    else if (clearanceLevel === 4) clearanceBadgeClass = "badge-clearance-4";
+      // status badge
+      let statusBadgeHTML = "";
+      if (isDeleted) {
+        statusBadgeHTML = `<span class="badge badge-status-archived">Archived</span>`;
+      } else if (isOut) {
+        statusBadgeHTML = `<span class="badge badge-status-out">Checked out</span>`;
+      } else {
+        statusBadgeHTML = `<span class="badge badge-status-available">Available</span>`;
+      }
 
-    const clearanceBadgeHTML = `<span class="badge ${clearanceBadgeClass}">L${clearanceLevel}</span>`;
+      // clearance badge
+      const clearanceLevel = f.clearance_level;
+      let clearanceBadgeClass = "badge-clearance";
+      if (clearanceLevel === 1) clearanceBadgeClass = "badge-clearance-1";
+      else if (clearanceLevel === 2) clearanceBadgeClass = "badge-clearance-2";
+      else if (clearanceLevel === 3) clearanceBadgeClass = "badge-clearance-3";
+      else if (clearanceLevel === 4) clearanceBadgeClass = "badge-clearance-4";
 
+      const clearanceBadgeHTML =
+        `<span class="badge ${clearanceBadgeClass}">L${clearanceLevel}</span>`;
 
-    const muted = isDeleted
-      ? 'style="opacity:.5;text-decoration:line-through;"'
-      : '';
+      const createdDisplay   = formatTimestamp(f.created_at);
+      const checkoutDisplay  = formatTimestamp(f.date_of_checkout);
+      const prevCheckoutDisp = formatTimestamp(f.date_of_previous_checkout);
 
-    const checkoutButtons = (() => {
+      // operator-only actions
+      const checkoutButtons = (() => {
+  if (!isOperator) {
+    // guest / viewer: cannot move files at all
+    return "—";
+  }
   if (isDeleted) {
     return "—";
   }
@@ -232,61 +536,69 @@ async function loadFiles() {
   }
 })();
 
-const lifecycleButtons = (() => {
-  if (isDeleted) {
-    return `<button class="table-btn btn-restore" onclick="restoreFile(${f.id})">Restore</button>`;
-  } else {
-    return `<button class="table-btn btn-delete" onclick="deleteFile(${f.id})">Delete</button>`;
-  }
-})();
+  const lifecycleButtons = (() => {
+    if (!isOperator) {
+      // guest / viewer: cannot delete/restore
+      return "—";
+    }
+    if (isDeleted) {
+      return `<button class="table-btn btn-restore" onclick="restoreFile(${f.id})">Restore</button>`;
+    } else {
+      return `<button class="table-btn btn-delete" onclick="deleteFile(${f.id})">Delete</button>`;
+    }
+  })();
 
-
-    const createdDisplay   = formatTimestamp(f.created_at);
-    const checkoutDisplay  = formatTimestamp(f.date_of_checkout);
-    const prevCheckoutDisp = formatTimestamp(f.date_of_previous_checkout);
-    const editButtonHTML = `
+  const editButtonHTML = (() => {
+    if (!isOperator) {
+      // guest / viewer: can't edit metadata
+      return "—";
+    }
+    return `
       <button class="icon-btn" onclick="openEditModal(${f.id}); event.stopPropagation();"
         title="Edit file">
         ✎
       </button>
     `;
+  })();
 
-    const row = document.createElement('tr');
+      const row = document.createElement('tr');
 
-    row.addEventListener('click', (e) => {
-      // if clicked a button, don't open details
-      if (e.target.tagName === 'BUTTON') return;
-      openFileDetails(f.id);
+      row.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') return;
+        openFileDetails(f.id);
+      });
+
+      row.classList.add('row-clickable');
+      if (isDeleted) {
+        row.classList.add('row-deleted');
+      }
+
+      row.innerHTML = `
+        <td class="cell-name">${f.name}</td>
+        <td>${f.system_number}-${f.shelf}</td>
+        <td>${clearanceBadgeHTML}</td>
+        <td>${statusBadgeHTML}</td>
+        <td>${f.added_by}</td>
+        <td>${createdDisplay}</td>
+        <td>${f.currently_held_by || '—'}</td>
+        <td>${checkoutDisplay}</td>
+        <td>${prevCheckoutDisp}</td>
+        <td>${f.tag || ''}</td>
+        <td>${f.note || ''}</td>
+        <td class="col-actions">${lifecycleButtons}</td>
+        <td class="cell-move">${checkoutButtons}</td>
+        <td class="cell-edit">${editButtonHTML}</td>
+      `;
+
+      tableBody.appendChild(row);
     });
 
-
-    row.classList.add('row-clickable');
-    if (isDeleted) {
-      row.classList.add('row-deleted');
-    }
-
-    row.innerHTML = `
-      <td class="cell-name">${f.name}</td>
-      <td>${f.system_number}-${f.shelf}</td>
-      <td>${clearanceBadgeHTML}</td>
-      <td>${statusBadgeHTML}</td>
-      <td>${f.added_by}</td>
-      <td>${createdDisplay}</td>
-      <td>${f.currently_held_by || '—'}</td>
-      <td>${checkoutDisplay}</td>
-      <td>${prevCheckoutDisp}</td>
-      <td>${f.tag || ''}</td>
-      <td>${f.note || ''}</td>
-
-      <td class="col-actions">${lifecycleButtons}</td>
-      <td class="cell-move">${checkoutButtons}</td>
-      <td class="cell-edit">${editButtonHTML}</td>
-    `;
-    tableBody.appendChild(row);
+    // footer stats (operator can see deleted, viewer can't)
+    const allRes = await fetch(`/api/files?include_deleted=true`, {
+      credentials: 'include',
     });
-
-    const allRes = await fetch(`/api/files?include_deleted=true`);
     const allFiles = await allRes.json();
+
     const activeCount = allFiles.filter(f => Number(f.is_deleted) === 0).length;
     const archivedCount = allFiles.filter(f => Number(f.is_deleted) === 1).length;
     const totalCount = allFiles.length;
@@ -308,18 +620,15 @@ const lifecycleButtons = (() => {
     console.error(err);
     alert('Failed to load files: ' + err.message);
   }
-  
 }
 
-    if (statusFilterEl) {
-      statusFilterEl.addEventListener('change', () => {
-        loadFiles();
-      });
-}
 
 async function deleteFile(id) {
   if (!confirm("Soft-delete this file? It can be restored later.")) return;
-  const res = await fetch(`/api/files/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/files/${id}`, {
+    method: "DELETE",
+    credentials: 'include',
+  });
   if (!res.ok) {
     const msg = await res.text();
     alert("Delete failed: " + msg);
@@ -330,7 +639,10 @@ async function deleteFile(id) {
 
 
 async function restoreFile(id) {
-  const res = await fetch(`/api/files/${id}/restore`, { method: "PATCH" });
+  const res = await fetch(`/api/files/${id}/restore`, {
+    method: "PATCH",
+    credentials: 'include',
+  });
   if (!res.ok) {
     const msg = await res.text();
     alert("Restore failed: " + msg);
@@ -387,7 +699,6 @@ modalConfirmBtn.addEventListener('click', async () => {
 
   try {
     if (modalMode === "checkout") {
-      // Build payload for checkout
       const holderName = modalHolderInput.value.trim();
       const noteVal = modalNoteInput.value.trim();
 
@@ -399,10 +710,10 @@ modalConfirmBtn.addEventListener('click', async () => {
       const res = await fetch(`/api/files/${modalFileId}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
           holder_name: holderName,
-          note: noteVal,
-          operator_name: "operator"
+          note: noteVal
         })
       });
 
@@ -413,15 +724,14 @@ modalConfirmBtn.addEventListener('click', async () => {
       }
 
     } else if (modalMode === "return") {
-      // Build payload for return
       const noteVal = modalNoteInput.value.trim();
 
       const res = await fetch(`/api/files/${modalFileId}/return`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({
-          note: noteVal,
-          operator_name: "operator"
+          note: noteVal
         })
       });
 
@@ -432,7 +742,6 @@ modalConfirmBtn.addEventListener('click', async () => {
       }
     }
 
-    // success path
     closeModal();
     await loadFiles();
 
@@ -602,6 +911,7 @@ editFileForm.addEventListener("submit", async (e) => {
     const res = await fetch(`/api/files/${editingFileId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 
@@ -617,7 +927,6 @@ editFileForm.addEventListener("submit", async (e) => {
     alert("Network error: " + err.message);
   }
 });
-
 
 function activateManualTab() {
   tabManualBtn.classList.add('tab-btn-active');
@@ -744,8 +1053,39 @@ if (csvImportBtn) {
 
 //export logic 
 function openExportModal() {
+  const role = currentUser?.role || "guest";
+  const isOperator = role === "operator";
+
+  // find the radio inputs
+  const radioFiles      = document.querySelector('input[value="files"][name="exportType"]');
+  const radioCheckouts  = document.querySelector('input[value="checkouts"][name="exportType"]');
+  const radioAll        = document.querySelector('input[value="all"][name="exportType"]');
+
+  if (!isOperator) {
+    // viewer (or guest if they somehow got here):
+    // - they can only download "files"
+    if (radioFiles) {
+      radioFiles.disabled = false;
+      radioFiles.checked = true;
+    }
+    if (radioCheckouts) {
+      radioCheckouts.disabled = true;
+      radioCheckouts.checked = false;
+    }
+    if (radioAll) {
+      radioAll.disabled = true;
+      radioAll.checked = false;
+    }
+  } else {
+    // operator: enable all
+    if (radioFiles)     radioFiles.disabled = false;
+    if (radioCheckouts) radioCheckouts.disabled = false;
+    if (radioAll)       radioAll.disabled = false;
+  }
+
   exportModalEl.style.display = "flex";
 }
+
 
 function closeExportModal() {
   exportModalEl.style.display = "none";
@@ -845,5 +1185,19 @@ document.querySelectorAll('th.sortable').forEach(th => {
   });
 });
 
-loadFiles();
 
+//IIFE
+(async () => {
+  await fetchSession();        // if not logged in, currentUser stays null, role UI becomes guest
+  updateHeaderUserInfo();      // will just be blank for guest
+
+  if (!currentUser) {
+    // guest mode
+    hideSessionModal();        // <- important change (don't force login modal)
+  } else {
+    hideSessionModal();
+  }
+
+  await loadFiles();
+  updateSortIndicators();
+})();
