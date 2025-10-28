@@ -331,7 +331,8 @@ def list_files(
         "created_at": "f.created_at",
         "updated_at": "f.updated_at",
         "clearance_level": "f.clearance_level",
-        "shelf": "f.shelf",
+        "location": "SUBSTR(f.system_number,1,1), f.shelf",
+        "prev_checkout": "fs.date_of_previous_checkout"
     }
     sort_col = allowed_sorts.get(sort, "f.created_at")
 

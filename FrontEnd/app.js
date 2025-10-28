@@ -729,9 +729,9 @@ modalConfirmBtn.addEventListener('click', async () => {
       const res = await fetch(`/api/files/${modalFileId}/return`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(
            noteVal
-        })
+        )
       });
 
       if (!res.ok) {

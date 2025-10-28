@@ -26,11 +26,11 @@ html {
 body {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 20px;
-  color: var(--text-main);
-  font-family: inherit;
-  line-height: 1.4;
+  padding: 100px 20px 0px; /* header height (~64px) + breathing room */
   background: transparent;
+  color: var(--text-main);
+  line-height: 1.4;
+  font-family: inherit;
 }
 
 /* ========== TABLE (catalog list) ========== */
@@ -40,24 +40,19 @@ table {
     width: 100%; 
     padding: 0px;
 }
-.table-scroll-region,
-.table-scroll-region * {
-  transform: none !important;
-  will-change: auto !important;
-  filter: none !important;
-  contain: initial !important;
-}
+
 
 .table-scroll-region {
   position: relative;  
   overflow-y: auto;
   overflow-x: hidden;
 
-  height: calc(100vh - 4.5rem - 4.5rem); /* viewport height minus header and footer */
+  height: calc(100vh - 4.5rem - 1.5rem); /* viewport height minus header and footer */
   border: 1px solid #ddd;
   background: #fff;
   border-radius: var(--radius-card); 
 }
+
 
 /* table stays full-width inside scroll region */
 .file-table {
@@ -75,7 +70,7 @@ table {
 .file-table-head th {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 10; 
 
   text-align: left;
   font-weight: 600;
@@ -84,13 +79,12 @@ table {
   color: #444;
 
   background: #f9f9f9;
-  backdrop-filter: blur(6px); /* subtle “frosted bar” effect */
+  backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 
   padding: 0.5rem 0.5rem;
   border-bottom: 1px solid #ddd;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  /* white-space: nowrap; */
 }
 
 /* Body cells */
@@ -189,23 +183,26 @@ table {
 /* ========== TOOLBAR (top controls row) ========== */
 /* The fixed header bar */
 .app-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+
   z-index: 1000;
 
   display: flex;
   align-items: center;
-  /*justify-content: space-between;*/
   justify-content: flex-end;
   gap: 1rem;
 
   background: #ffffff;
   border-bottom: 1px solid #e2e2e2;
   padding: 1rem 1rem;
-  border-radius: 0 0 --radius-control-search --radius-control-search;
-  /* subtle elevation so it reads like an app chrome, not plain text */
+
+  /* full-width bar, so we don't cap at 1600px here */
+  max-width: none;
+  border-radius: 0;
   box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Left cluster (branding) */
@@ -532,43 +529,45 @@ table {
 
 /* Availability / lifecycle */
 .badge-status-available {
-  background: #eef9f1;
-  color: #205b2e;
-  border-color: #cdecd5;
+  background: #dff7e6;      /* was #eef9f1 */
+  color: #145d2e;           /* deeper green */
+  border-color: #8fd7a3;    /* stronger border */
 }
 
 .badge-status-out {
-  background: #fff8e6;
-  color: #7a4b00;
-  border-color: #f5e3b0;
+  background: #fff3cc;      /* was #fff8e6 */
+  color: #7a4b00;           /* keep the amber text, it's already high contrast */
+  border-color: #e6c46a;    /* richer gold edge */
 }
 
 .badge-status-archived {
-  background: #f2f2f2;
-  color: #444;
-  border-color: #d9d9d9;
+  background: #e6e6e6;      /* was #f2f2f2 */
+  color: #2f2f2f;           /* push closer to body text contrast */
+  border-color: #bfbfbf;    /* darker gray rim */
 }
 
-/* Clearance levels */
 .badge-clearance-1 {
-  background: #eef6ff;
-  color: #1a3a6a;
-  border-color: #c8dcf6;
+  background: #d9eaff;
+  color: #113a6b;
+  border-color: #b4d3f6;
 }
+
 .badge-clearance-2 {
-  background: #eef9ff;
-  color: #144a5a;
-  border-color: #cbeaf4;
+  background: #d8f3ff;
+  color: #134f5e;
+  border-color: #b6e3f1;
 }
+
 .badge-clearance-3 {
-  background: #fff4ec;
-  color: #6a3a14;
-  border-color: #f1d5be;
+  background: #ffe5d3;
+  color: #653010;
+  border-color: #f1c09c;
 }
+
 .badge-clearance-4 {
-  background: #ffefef;
-  color: #6a1a1a;
-  border-color: #e9c1c1;
+  background: #ffd7d7;
+  color: #641313;
+  border-color: #e7b4b4;
 }
 
 .file-table td .badge {
@@ -636,8 +635,8 @@ table {
   left: 0;
   width: 100%;
 
-  background: #ffffff5e;
-  backdrop-filter: blur(6px);
+  background: #ffffff83;
+  backdrop-filter: blur(4px);
   border-top: 1px solid var(--border-soft);
 
   z-index: 9000;
@@ -739,26 +738,35 @@ table {
 .table-btn {
   appearance: none;
   cursor: pointer;
-  font-family: var(--font-stack);
-  font-size: 0.8rem;
-  line-height: 1.2;
-  font-weight: 500;
-
   border-radius: 6px;
-  border: 1px solid transparent;
-  padding: 0.5rem 0.75rem;
+  border: 1px solid #d0d0cc;
+  background: #f9f9f6;
+  color: #1b1b1b;
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  padding: 0.5rem 0.8rem;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+  box-shadow: 0 0 0 rgba(0,0,0,0); /* no default elevation */
+}
 
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.btn:hover,
+.table-btn:hover {
+  background: #f1f1ec;
+  border-color: #c7c7c0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
 
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  text-align: center;
-  white-space: nowrap;
-  min-height: 2rem;
-
-  /* kill all the global drop-shadows from before */
-  box-shadow: none;
+.btn:active,
+.table-btn:active {
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+  transition-duration: 0.06s;
 }
 
 /* PRIMARY = high-emphasis (checkout / confirm / "do it") */
@@ -798,18 +806,34 @@ table {
 /* DESTRUCTIVE = dangerous action (delete) */
 .btn-destructive,
 .btn-delete {
-  background: #fff1f1;        /* stronger red tint than before */
-  color: #8a1f1f;             /* darker red text for contrast */
-  border-color: #d8a8a8;      /* warm border so it reads as "danger zone" */
+  background: #fff;
+  color: #6a1f1f;                /* deep red text for affordance */
+  border-color: #d9b8b5;         /* muted red-tan border */
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+
+  /* make sure it matches base button typography/padding */
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
 }
 
 .btn-destructive:hover,
 .btn-delete:hover {
-  background: #ffe8e8;        /* slightly deeper on hover */
-  border-color: #c78686;
-  color: #721717;
+  background: #fffafa;           /* whisper of red */
+  border-color: #b45a5a;         /* stronger red border */
+  color: #4a0f0f;                /* darker text for contrast */
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.06),   /* same soft lift as base */
+    0 0 0 3px rgba(180, 90, 90, 0.12); /* subtle red focus halo */
 }
 
+.btn-destructive:active,
+.btn-delete:active {
+  box-shadow:
+    0 0 0 2px rgba(180, 90, 90, 0.18); /* ring tightens on press */
+  transition-duration: 0.06s;
+}
 /* Tiny header/logout style (kept from before) */
 .btn-ghost-small {
   appearance: none;
@@ -967,14 +991,14 @@ table {
   background: #fff;
   color: #222;
   border-radius: 12px;
-  min-width: 320px;
-  max-width: 360px;
+  min-width: 360px;
+  max-width: 460px;   /* was 360px */
   width: 90%;
   box-shadow:
     0 28px 80px rgba(0,0,0,0.4),
     0 4px 16px rgba(0,0,0,0.2);
   border: 1px solid rgba(0,0,0,0.07);
-  padding: 1.25rem 1.25rem 1rem;
+  padding: 1.5rem 1.5rem 1rem; /* a little more air */
 }
 
 /* Header section */
