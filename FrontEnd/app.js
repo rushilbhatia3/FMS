@@ -277,9 +277,10 @@ const lifecycleButtons = (() => {
       <td>${prevCheckoutDisp}</td>
       <td>${f.tag || ''}</td>
       <td>${f.note || ''}</td>
+
       <td class="cell-actions">${lifecycleButtons}</td>
-      <td class="cell-actions">${checkoutButtons}</td>
-      <td class="cell-actions">${editButtonHTML}</td>
+      <td class="cell-move">${checkoutButtons}</td>
+      <td class="cell-edit">${editButtonHTML}</td>
     `;
     tableBody.appendChild(row);
     });

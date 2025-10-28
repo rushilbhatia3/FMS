@@ -34,12 +34,18 @@ body {
 }
 
 /* ========== TABLE (catalog list) ========== */
-
+table { 
+    border-spacing: 0; 
+    border-collapse: collapse; 
+    width: 100%; 
+    padding: 0px;
+}
 
 .table-scroll-region {
   position: relative;
+  max-height: calc(100vh - 8rem); /* temp sanity check */
+  height: calc(100vh - 8rem);  
   overflow-y: auto;
-  overflow-x: auto; /* in case columns overflow on smaller screens */
 
   /* This defines how tall the scroll region can be.
      We’re subtracting:
@@ -55,17 +61,22 @@ body {
 
 /* table stays full-width inside scroll region */
 .file-table {
-  border-collapse: collapse;
-  font-family: inherit;
-  font-size: 0.9rem;
-  color: #222;
+  width: 100%; 
+  table-layout: fixed;
+  border-collapse: collapse; 
+  font-family: inherit; 
+  font-size: 0.9rem; 
+  color: var(--text-main);
+  background: var(--bg-card); 
+  border-radius: var(--radius-card); 
+  overflow: hidden; /* so header radius shows cleanly if you wrap table in a container later */
 }
 
 /* Header row styles */
 .file-table-head th {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
 
   text-align: left;
   font-weight: 600;
@@ -74,23 +85,28 @@ body {
   color: #444;
 
   background: #f9f9f9;
-  backdrop-filter: blur(4px); /* subtle “frosted bar” effect */
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px); /* subtle “frosted bar” effect */
+  -webkit-backdrop-filter: blur(6px);
 
   padding: 0.5rem 0.5rem;
   border-bottom: 1px solid #ddd;
-  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  /* white-space: nowrap; */
 }
 
 /* Body cells */
 .file-table td {
   padding: 0.5rem 0.5rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-softer);
   vertical-align: top;
   line-height: 1.4;
-  background: #fff;
+  background: var(--bg-card); 
   max-width: 240px;
+  overflow-wrap: break-word;      /* break long strings like "AAAAAAAAAAAA" */
   word-break: break-word;
+  white-space: normal;            /* allow wrapping */
+  text-overflow: ellipsis;
+  color: var(--text-main); 
 }
 
 /* Hover state for row (unchanged from before, but this helps visually now that header is fixed) */
@@ -150,6 +166,25 @@ body {
   background: var(--bg-card);
 }
 
+.col-name{
+    width: 8rem;
+    max-width: 8.2rem;
+    min-width: 7.5rem;
+}
+
+.col-note{
+    width: 7rem;
+    max-width: 7.3rem;
+    min-width: 6.2rem;
+}
+
+.col-actions{
+    width: 6rem;
+}
+
+.cell-edit{
+    width: 2.4rem;
+}
 
 
 

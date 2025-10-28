@@ -53,29 +53,30 @@
 
   <!-- Status-driven list sourced from file_status view -->
    <div class="table-scroll-region">
-  <table id="fileTable" class="file-table">
-  <thead class="file-table-head">
-  <tr>
-    <th class="sortable" data-sort="name">Name <span class="sort-indicator"></span></th>
-    <th class="sortable" data-sort="shelf">Location <span class="sort-indicator"></span></th>
-    <th class="sortable" data-sort="clearance_level">Clearance <span class="sort-indicator"></span></th>
-    <th>Status</th>
-    <th>Added By</th>
-    <th class="sortable" data-sort="created_at">Date Added <span class="sort-indicator"></span></th>
-    <th>Currently Held By</th>
-    <th>Checkout</th>
-    <th>Previous Checkout</th>
-    <th>Tag</th>
-    <th>Note</th>
-    <th>Actions</th>
-    <th>Checkout / Return</th>
-    <th>Edit</th>
-  </tr>
-</thead>
-  <tbody>
-    <!-- rows injected by JS -->
-  </tbody>
-</table>
+    <table id="fileTable" class="file-table">
+    <thead class="file-table-head">
+    <tr>
+      <th class="sortable col-name" data-sort="name">Name <span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="shelf">Location<span class="sort-indicator"></span></th>
+      <th class="sortable col-actions" data-sort="clearance_level">Clearance<span class="sort-indicator"></span></th>
+      <th>Status</th>
+      <th class="col-note">Added By</th>
+      <th class="sortable" data-sort="created_at">Date Added<span class="sort-indicator"></span></th>
+      <th>Held By</th>
+      <th>Checkout</th>
+      <th>Previous Checkout</th>
+      <th>Tag</th>
+      <th class="col-note">Note</th>
+      <th class="col-actions">Actions</th>
+      <th class="cell-move">Checkout</th>
+      <th class="cell-edit">Edit</th>
+    </tr>
+    </thead>
+
+    <tbody>
+      <!-- rows injected by JS -->
+    </tbody>
+  </table>
 </div>
 
 <!-- Checkout / Checkin Modal -->
