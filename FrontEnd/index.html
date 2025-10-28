@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <title>File Management System</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="app.js"></script>
+    <!--script defer src="functionality.js"></script -->
+
+</head>
+<body>
+<div class="app-header">
+  <div class="app-header-left">
+    <div class="product-title">
+      <span class="product-name">FMS</span>
+      <span class="product-sub">File Management System</span>
+    </div>
+  </div>
+
+  <div class="app-header-right">
+    <label class="checkbox-label">
+      <input type="checkbox" id="showDeleted" />
+      Show deleted
+    </label>
+
+    <select id="statusFilter" class="small-select">
+      <option value="">All files</option>
+      <option value="available">Available only</option>
+      <option value="out">Checked out only</option>
+    </select>
+
+    <div class="search-wrapper">
+      <input
+        id="searchBox"
+        class="search-input"
+        type="text"
+        placeholder="Search files or holders…"
+      />
+    </div>
+
+    <button id="exportOpenBtn" class="btn btn-secondary btn-compact">
+      Export
+    </button>
+
+    <button id="openAddFileBtn" class="btn btn-primary btn-compact">
+      Add File
+    </button>
+  </div>
+</div>
+
+
+  <!-- Status-driven list sourced from file_status view -->
+   <div class="table-scroll-region">
+  <table id="fileTable" class="file-table">
+  <thead class="file-table-head">
+  <tr>
+    <th class="sortable" data-sort="name">Name <span class="sort-indicator"></span></th>
+    <th class="sortable" data-sort="shelf">Location <span class="sort-indicator"></span></th>
+    <th class="sortable" data-sort="clearance_level">Clearance <span class="sort-indicator"></span></th>
+    <th>Status</th>
+    <th>Added By</th>
+    <th class="sortable" data-sort="created_at">Date Added <span class="sort-indicator"></span></th>
+    <th>Currently Held By</th>
+    <th>Checkout</th>
+    <th>Previous Checkout</th>
+    <th>Tag</th>
+    <th>Note</th>
+    <th>Actions</th>
+    <th>Checkout / Return</th>
+    <th>Edit</th>
+  </tr>
+</thead>
+  <tbody>
+    <!-- rows injected by JS -->
+  </tbody>
+</table>
+</div>
+
+<!-- Checkout / Checkin Modal -->
+<div id="checkoutModal" class="modal">
+  <div class="modal-content">
+    <h3 id="modalTitle" class="modal-title">
+      Action
+    </h3>
+
+    <div id="holderField" class="form-section">
+      <label class="form-label">
+        Holder name
+      </label>
+      <input
+        type="text"
+        id="modal_holder_name"
+        class="form-input"
+        placeholder="Who is taking the file?"
+      />
+    </div>
+
+    <div class="form-section">
+      <label class="form-label">
+        Note (optional)
+      </label>
+      <textarea
+        id="modal_note"
+        class="form-input textarea-input"
+        placeholder="Any notes about this movement"
+      ></textarea>
+    </div>
+
+   <div class="modal-actions">
+      <button id="modalCancelBtn" type="button" class="btn btn-quiet">
+        Cancel
+      </button>
+
+      <button id="modalConfirmBtn" class="btn btn-action">
+        Confirm
+      </button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- File Details Modal -->
+<div id="detailsModal" class="modal modal-details">
+  <div class="modal-content">
+    <h3 id="detailsTitle" class="modal-title">
+      File Details
+    </h3>
+
+    <div class="details-body">
+  <div class="details-meta">
+
+    <div class="detail-row">
+      <div class="detail-label">ID:</div>
+      <div class="detail-value" id="details_id"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Name:</div>
+      <div class="detail-value" id="details_name"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Size:</div>
+      <div class="detail-value" id="details_size"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Type:</div>
+      <div class="detail-value" id="details_type"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Tag:</div>
+      <div class="detail-value" id="details_tag"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Note:</div>
+      <div class="detail-value" id="details_note"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Location:</div>
+      <div class="detail-value" id="details_loc"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Clearance:</div>
+      <div class="detail-value" id="details_clearance"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Added By:</div>
+      <div class="detail-value" id="details_added_by"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Created At:</div>
+      <div class="detail-value" id="details_created"></div>
+    </div>
+  </div>
+
+  <div class="details-status-block">
+    <div class="detail-row">
+      <div class="detail-label">Currently Held By:</div>
+      <div class="detail-value" id="details_holder"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Checked Out At:</div>
+      <div class="detail-value" id="details_checkout_at"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Previous Checkout:</div>
+      <div class="detail-value" id="details_prev_checkout"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Last Modified:</div>
+      <div class="detail-value" id="details_modified"></div>
+    </div>
+
+    <div class="detail-row">
+      <div class="detail-label">Status:</div>
+      <div class="detail-value" id="details_status"></div>
+    </div>
+  </div>
+</div>
+
+<div class="details-history-section">
+  <div class="details-history-title">Last 10 Movements</div>
+
+  <div id="details_history" class="details-history-box">
+    <!-- JS will inject .history-entry blocks -->
+  </div>
+</div>
+
+
+
+    <div class="modal-actions">
+      <button
+        id="detailsCloseBtn"
+        class="btn btn-secondary"
+        type="button"
+      >
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Add File Modal -->
+<div id="addFileModal" class="modal modal-addfile">
+  <div class="modal-content">
+
+    <h3 class="modal-title">Add New File</h3>
+
+    <!-- Tab header -->
+    <div class="tab-header">
+      <button
+        id="tabManualBtn"
+        class="tab-btn tab-btn-active"
+        type="button"
+      >Manual Entry</button>
+
+      <button
+        id="tabImportBtn"
+        class="tab-btn"
+        type="button"
+      >Import CSV</button>
+    </div>
+
+    <!-- Manual entry panel -->
+    <div id="manualPanel" class="tab-panel tab-panel-active">
+      <form id="fileForm" class="form">
+        <!-- (your existing manual fields go here unchanged) -->
+
+        <!-- Name -->
+        <label class="form-field">
+          <span class="form-label">Name</span>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            class="form-input"
+            placeholder="e.g., Contract ABC"
+            required
+          />
+        </label>
+
+        <!-- Size -->
+        <label class="form-field">
+          <span class="form-label">Size</span>
+          <input
+            type="text"
+            id="size_label"
+            name="size_label"
+            class="form-input"
+            placeholder="e.g., A4 folder / 500 pages"
+          />
+        </label>
+
+        <!-- Type -->
+        <label class="form-field">
+          <span class="form-label">Type</span>
+          <input
+            type="text"
+            id="type_label"
+            name="type_label"
+            class="form-input"
+            placeholder="e.g., contract, invoice, box"
+          />
+        </label>
+
+        <!-- Tag -->
+        <label class="form-field">
+          <span class="form-label">Tag</span>
+          <input
+            type="text"
+            id="tag"
+            name="tag"
+            class="form-input"
+            placeholder="e.g., finance, legal"
+          />
+        </label>
+
+        <!-- Note -->
+        <label class="form-field">
+          <span class="form-label">Note / instruction</span>
+          <input
+            id="note"
+            name="note"
+            class="form-input"
+            placeholder="Any handling or routing notes"
+          />
+        </label>
+
+        <!-- Location -->
+        <fieldset class="fieldset-block">
+          <legend class="fieldset-legend">Location</legend>
+
+          <label class="form-field">
+            <span class="form-label">System number</span>
+            <input
+              type="text"
+              id="system_number"
+              name="system_number"
+              class="form-input"
+              placeholder="e.g., S01"
+              required
+            />
+          </label>
+
+          <label class="form-field">
+            <span class="form-label">Shelf</span>
+            <input
+              type="text"
+              id="shelf"
+              name="shelf"
+              class="form-input"
+              placeholder="e.g., A3"
+              required
+            />
+          </label>
+        </fieldset>
+
+        <!-- Clearance -->
+        <label class="form-field">
+          <span class="form-label">Clearance level</span>
+          <select
+            id="clearance_level"
+            name="clearance_level"
+            class="form-input"
+            required
+          >
+            <option value="" disabled selected>Select level (1–4)</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+
+        <label class="form-field">
+          <span class="form-label">Added by</span>
+          <input
+            type="text"
+            id="added_by"
+            name="added_by"
+            class="form-input"
+            placeholder="Defaults to 'operator' if left empty"
+          />
+        </label>
+
+        <div class="modal-actions">
+          <button
+            id="addFileCancelBtn"
+            type="button"
+            class="btn btn-secondary"
+          >Cancel</button>
+
+          <button
+            id="addFileSubmitBtn"
+            type="submit"
+            class="btn btn-primary"
+          >Save File</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- CSV import panel -->
+    <div id="importPanel" class="tab-panel">
+      <div class="form">
+        <div class="form-field">
+          <span class="form-label">CSV File</span>
+          <input
+            type="file"
+            id="csvFileInput"
+            class="form-input"
+            accept=".csv, .xlsx"
+          />
+        </div>
+
+        <div class="import-hint">
+          The CSV should have columns:<br />
+          <code>name, size_label, type_label, tag, note, system_number, shelf, clearance_level, added_by</code>
+        </div>
+
+        <div class="modal-actions">
+  <button id="addFileCancelBtn" type="button" class="btn btn-quiet">
+    Cancel
+  </button>
+
+  <button id="addFileSubmitBtn" type="submit" class="btn btn-action">
+    Save File
+  </button>
+</div>
+        <div id="csvImportStatus" class="import-status"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- Edit File Modal -->
+<div id="editFileModal" class="modal modal-editfile">
+  <div class="modal-content">
+    <h3 class="modal-title">Edit File</h3>
+
+    <form id="editFileForm" class="form">
+      <!-- Name -->
+      <label class="form-field">
+        <span class="form-label">Name</span>
+        <input
+          type="text"
+          id="edit_name"
+          name="name"
+          class="form-input"
+          required
+        />
+      </label>
+
+      <!-- Size -->
+      <label class="form-field">
+        <span class="form-label">Size</span>
+        <input
+          type="text"
+          id="edit_size_label"
+          name="size_label"
+          class="form-input"
+        />
+      </label>
+
+      <!-- Type -->
+      <label class="form-field">
+        <span class="form-label">Type</span>
+        <input
+          type="text"
+          id="edit_type_label"
+          name="type_label"
+          class="form-input"
+        />
+      </label>
+
+      <!-- Tag -->
+      <label class="form-field">
+        <span class="form-label">Tag</span>
+        <input
+          type="text"
+          id="edit_tag"
+          name="tag"
+          class="form-input"
+        />
+      </label>
+
+      <!-- Note -->
+      <label class="form-field">
+        <span class="form-label">Note / instruction</span>
+        <input
+          id="edit_note"
+          name="note"
+          class="form-input"
+        />
+      </label>
+
+      <!-- Location -->
+      <fieldset class="fieldset-block">
+        <legend class="fieldset-legend">Location</legend>
+
+        <label class="form-field">
+          <span class="form-label">System number</span>
+          <input
+            type="text"
+            id="edit_system_number"
+            name="system_number"
+            class="form-input"
+            required
+          />
+        </label>
+
+        <label class="form-field">
+          <span class="form-label">Shelf</span>
+          <input
+            type="text"
+            id="edit_shelf"
+            name="shelf"
+            class="form-input"
+            required
+          />
+        </label>
+      </fieldset>
+
+      <!-- Clearance -->
+      <label class="form-field">
+        <span class="form-label">Clearance level</span>
+        <select
+          id="edit_clearance_level"
+          name="clearance_level"
+          class="form-input"
+          required
+        >
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+
+      <div class="modal-actions">
+        <button
+          id="editFileCancelBtn"
+          type="button"
+          class="btn btn-secondary"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="editFileSubmitBtn"
+          type="submit"
+          class="btn btn-primary"
+        >
+          Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Export Data Modal -->
+<div id="exportModal" class="modal">
+  <div class="modal-content" style="min-width:280px; max-width:320px;">
+    <h3 class="modal-title">Export Data</h3>
+
+    <div class="form-section" style="font-size:0.9rem; line-height:1.4;">
+      <label style="display:flex; align-items:flex-start; gap:0.5rem; margin-bottom:0.5rem; cursor:pointer;">
+        <input type="radio" name="exportType" value="files">
+        <div>
+          <div><strong>Files only</strong></div>
+          <div style="color:#555; font-size:0.8rem;">Catalog, locations, clearance</div>
+        </div>
+      </label>
+
+      <label style="display:flex; align-items:flex-start; gap:0.5rem; margin-bottom:0.5rem; cursor:pointer;">
+        <input type="radio" name="exportType" value="checkouts">
+        <div>
+          <div><strong>Checkouts only</strong></div>
+          <div style="color:#555; font-size:0.8rem;">Who had what, when</div>
+        </div>
+      </label>
+
+      <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
+        <input type="radio" name="exportType" value="all" checked>
+        <div>
+          <div><strong>Everything (ZIP)</strong></div>
+          <div style="color:#555; font-size:0.8rem;">Files + full movement log</div>
+        </div>
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button id="exportCancelBtn" class="btn btn-secondary" type="button">
+        Cancel
+      </button>
+
+      <button id="exportConfirmBtn" class="btn btn-primary" type="button">
+        Download
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Table Footer -->
+<div id="tableFooter" class="table-footer">
+  <div class="table-footer-inner">
+    <span id="footerActiveCount"></span>
+    <span class="footer-separator">•</span>
+    <span id="footerArchivedCount"></span>
+    <span class="footer-separator">•</span>
+    <span id="footerTotalCount"></span>
+  </div>
+</div>
+
+</body>
+</html>
