@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from maintenance import router as maintenance_router
 from auth import router as auth_router
 from db import db_read, db_write
+from settings import router as settings_router
 
 from auth import (
     get_current_user,
@@ -15,7 +16,7 @@ from auth import (
 )
 
 DB_PATH = "Database/Database.db"
-app=FastAPI()
+app = FastAPI(title="FMS", version="1.0")
 
 
 #@app.get("/")
@@ -859,8 +860,6 @@ def update_file(
         "file": dict(updated),
     }
 
-    
-
 
 """
 this is all to read stuff from csv/xlsx and import it in bulk
@@ -1046,7 +1045,6 @@ def import_file(
         "failed": failed,
         "errors": errors[:10],
     }
-
 
 
 #export file logic
@@ -1269,5 +1267,6 @@ innitDB()
 
 app.include_router(maintenance_router)
 app.include_router(auth_router)
+app.include_router(settings_router)
 
 app.mount("/app", StaticFiles(directory="/Users/rushilb/Desktop/DBMS/FrontEnd", html=True), name="FrontEnd")

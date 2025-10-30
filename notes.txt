@@ -2,3 +2,9 @@ Clearance based access
 l1 -> l2 
 l2 different color
 l3 lighter 
+
+
+
+
+30th October
+keep a note of the new helper settings in the db.py - these will have to be changed when you implemetn the rest of the settings menu 
