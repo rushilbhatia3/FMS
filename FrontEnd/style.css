@@ -61,7 +61,7 @@ table {
     100vh
     - var(--header-height)
     - var(--footer-height)
-    - 36px        
+    - 26px        
   );/* tiny breathing space so footer shadow isn't jammed */
 
   border: 1px solid #ddd;
@@ -211,13 +211,13 @@ table {
   z-index: 1000;
 
   display: flex;
-  align-items: flex-start;   /* top-align title block + controls */
-  flex-wrap: wrap;           /* allows wrapping on narrow screens */
+  align-items: center;   /* top-align title block + controls */
+  flex-wrap: nowrap;           /* allows wrapping on narrow screens */
   gap: 1rem;
 
   background: #ffffff;
   border-bottom: 1px solid #e2e2e2;
-  padding: 1rem 1rem;
+  padding: 0.75rem 1rem;
 
   /* lock in visual height for layout calcs */
   min-height: var(--header-height);
@@ -230,6 +230,8 @@ table {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  justify-content: center;
+  margin-left: 48px;
 }
 
 .app-header-right {
@@ -240,6 +242,7 @@ table {
   column-gap: 0.75rem;
   margin-left: auto;
   min-width: 0;
+  margin-right: 48px;
 }
 .product-title {
   display: flex;
@@ -288,17 +291,39 @@ table {
 /* --- Search behavior --- */
 
 /* container so we can animate width cleanly */
+
 .search-wrapper {
   display: flex;
   align-items: center;
-  transition: width 0.18s ease;
-  width: 9rem;           /* collapsed width */
-  max-width: 14rem;
+  gap: 0.4rem;
+  margin-right: 90px;
+
+  /* visual shell */
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: var(--radius-control-search, 8px);
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+
+  padding: 0.4rem 0.5rem;
+
+  /* animation */
+  width: 10rem;
+  max-width: 24rem;
+  transition:
+    width 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
+  cursor: text;
+  position: relative;
 }
 
 /* on focus we'll widen this container */
 .search-wrapper.focused {
-  width: 14rem;
+  width: 24rem;
+  border-color: #222;
+  background-color: #fff;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
 }
 
 /* actual input */
@@ -306,20 +331,25 @@ table {
   width: 100%;
   font-size: 0.8rem;
   line-height: 1.2;
-  padding: 0.45rem 0.5rem;
+  padding: 0;
 
   border-radius: 4px;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 0px solid #ccc;
+  background: transparent;
   color: #222;
 
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+  box-shadow: none;
 }
 
 .search-input:focus {
-  outline: none;
-  border-color: #222;
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.08);
+   outline: none;
+  box-shadow: none;
+  border: 0;
+}
+.search-input::placeholder {
+  color: #888;
+  font-weight: 400;
 }
 
 /* Compact button variant for header bar */
@@ -654,18 +684,18 @@ table {
   left: 0;
   width: 100%;
 
-  background: #ffffff83;
+  background: #ffffff4a;
   backdrop-filter: blur(4px);
   border-top: 1px solid var(--border-soft);
 
   z-index: 9000;
   font-size: 0.8rem;
-  line-height: 1.4;
+  line-height: 1.2;
   color: var(--text-main);
 
   /* fade-in hook */
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: opacity 1s ease;
 }
 
 /* constrain the text so it doesn't touch the viewport edge */
