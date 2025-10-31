@@ -12,10 +12,10 @@ from settings import router as settings_router
 
 from auth import (
     get_current_user,
-    require_operator,
+    require_admin,
 )
 
-DB_PATH = "Database/Database.db"
+DB_PATH = "Database/database.db"
 app = FastAPI(title="FMS", version="1.0")
 
 
@@ -33,7 +33,7 @@ def dbTest():
     system_number= "SYS-001", 
     shelf=  "2b",
     clearance_level=  1,
-    added_by= "operator"))
+    added_by= "admin"))
 
 def innitDB():
     conn = sqlite3.connect(DB_PATH)
@@ -53,7 +53,7 @@ def innitDB():
 
           clearance_level   INTEGER NOT NULL CHECK (clearance_level BETWEEN 1 AND 4),
 
-          added_by          TEXT NOT NULL DEFAULT 'operator',
+          added_by          TEXT NOT NULL DEFAULT 'admin',
           created_at        TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
           updated_at        TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
           deleted_at        TEXT,
@@ -76,7 +76,7 @@ def innitDB():
           holder_name    TEXT NOT NULL,
           checkout_at    TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
           return_at      TEXT,
-          operator_name  TEXT NOT NULL DEFAULT 'operator',
+          admin_name  TEXT NOT NULL DEFAULT 'admin',
           note           TEXT,
           -- Timeline guard: return cannot predate checkout
           CHECK (return_at IS NULL OR return_at >= checkout_at),
@@ -190,14 +190,14 @@ def add_file(
     type_label: str | None = Body(None),
     tag: str | None = Body(None),
     note: str | None = Body(None),
-    added_by: str = Body("operator"),
+    added_by: str = Body("admin"),
 ):
     # auth
     user = get_current_user(request)
-    require_operator(user)
+    require_admin(user)
 
     # who is performing the add (use email from session)
-    operator_name = (user.get("email") or "operator").strip()
+    admin_name = (user.get("email") or "admin").strip()
 
     # validations
     clean_name = (name or "").strip()
@@ -263,7 +263,7 @@ def add_file(
         clean_system_number,
         clean_shelf,
         clearance_level,
-        operator_name,
+        admin_name,
     )
 
     try:
@@ -283,7 +283,7 @@ def add_file(
             "shelf": clean_shelf,
         },
         "clearance_level": clearance_level,
-        "added_by": operator_name,
+        "added_by": admin_name,
         "status": "created"
     }
 
@@ -306,7 +306,7 @@ def list_files(
     - guest / viewer:
         - cannot see deleted rows (include_deleted forced False)
         - response strips deletion metadata
-    - operator:
+    - admin:
         - can include deleted
     """
 
@@ -316,7 +316,7 @@ def list_files(
     user = get_current_user(request)
     role = user.get("role", "guest") if user else "guest"
 
-    effective_include_deleted = include_deleted if role == "operator" else False
+    effective_include_deleted = include_deleted if role == "admin" else False
 
     #
     # 2. sanitize pagination inputs
@@ -479,9 +479,9 @@ def list_files(
     total = count_rows[0]["total_count"] if count_rows else 0
 
     #
-    # 7. scrub response for non-operators
+    # 7. scrub response for non-admins
     #
-    if role != "operator":
+    if role != "admin":
         for r in items:
             r.pop("deleted_at", None)
             r.pop("is_deleted", None)
@@ -505,7 +505,7 @@ def soft_delete_file(
 ):
     # auth
     user = get_current_user(request)
-    require_operator(user)
+    require_admin(user)
 
     # does file exist?
     row = db_read("SELECT id, is_deleted FROM files WHERE id = ?", (file_id,))
@@ -547,7 +547,7 @@ def restore_file(
 ):
     # auth
     user = get_current_user(request)
-    require_operator(user)
+    require_admin(user)
 
     row = db_read("SELECT id, is_deleted FROM files WHERE id = ?", (file_id,))
     if not row:
@@ -566,7 +566,7 @@ def restore_file(
 def list_deleted_files(request: Request):
     # auth
     user = get_current_user(request)
-    require_operator(user)
+    require_admin(user)
 
     sql = """
     SELECT *
@@ -591,9 +591,9 @@ def checkout_file(
             detail="Not authenticated."
         )
 
-    require_operator(user)
+    require_admin(user)
 
-    operator_name = (user.get("email") or "operator").strip()
+    admin_name = (user.get("email") or "admin").strip()
 
     row = db_read(
         "SELECT id, is_deleted FROM files WHERE id = ?",
@@ -632,10 +632,10 @@ def checkout_file(
     try:
         checkout_id = db_write(
             """
-            INSERT INTO checkouts (file_id, holder_name, operator_name, note)
+            INSERT INTO checkouts (file_id, holder_name, admin_name, note)
             VALUES (?, ?, ?, ?)
             """,
-            (file_id, clean_holder, operator_name, note),
+            (file_id, clean_holder, admin_name, note),
         )
     except Exception as e:
         raise HTTPException(
@@ -648,7 +648,7 @@ def checkout_file(
         "file_id": file_id,
         "checkout_id": checkout_id,
         "holder_name": clean_holder,
-        "operator_name": operator_name,
+        "admin_name": admin_name,
     }
 
 
@@ -665,8 +665,8 @@ def return_file(
     user = get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated.")
-    require_operator(user)
-    operator_name = user.get("email", "operator")
+    require_admin(user)
+    admin_name = user.get("email", "admin")
 
     file_row = db_read("SELECT id FROM files WHERE id = ?", (file_id,))
     if not file_row:
@@ -692,11 +692,11 @@ def return_file(
         """
         UPDATE checkouts
         SET return_at = CURRENT_TIMESTAMP,
-            operator_name = ?,
+            admin_name = ?,
             note = ?
         WHERE id = ?
         """,
-        (operator_name, final_note, checkout_id),
+        (admin_name, final_note, checkout_id),
     )
 
     return {"status": "returned", "file_id": file_id, "note": final_note}
@@ -747,7 +747,7 @@ def file_details(file_id: int):
             c.holder_name,
             c.checkout_at,
             c.return_at,
-            c.operator_name,
+            c.admin_name,
             c.note
         FROM checkouts c
         WHERE c.file_id = ?
@@ -780,7 +780,7 @@ def update_file(
 ):
     # 0. auth
     user = get_current_user(request)
-    require_operator(user)
+    require_admin(user)
 
     row = db_read(
         """
@@ -882,7 +882,7 @@ def _validate_and_normalize_row(row: dict) -> dict:
         except ValueError:
             raise ValueError("clearance_level must be an integer")
 
-    added_by = (row.get("added_by") or "operator").strip() or "operator"
+    added_by = (row.get("added_by") or "admin").strip() or "admin"
 
     # Business rules
     if not name:
@@ -961,7 +961,7 @@ def import_file(
     user = get_current_user(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated.")
-    require_operator(user)
+    require_admin(user)
 
     filename = (file.filename or "").lower()
 
@@ -1120,7 +1120,7 @@ def _export_checkouts_csv() -> io.StringIO:
         holder_name,
         checkout_at,
         return_at,
-        operator_name,
+        admin_name,
         note
     FROM checkouts
     ORDER BY checkout_at DESC
@@ -1136,7 +1136,7 @@ def _export_checkouts_csv() -> io.StringIO:
         "holder_name",
         "checkout_at",
         "return_at",
-        "operator_name",
+        "admin_name",
         "note"
     ])
 
@@ -1147,7 +1147,7 @@ def _export_checkouts_csv() -> io.StringIO:
             r["holder_name"],
             r["checkout_at"],
             r["return_at"],
-            r["operator_name"],
+            r["admin_name"],
             r["note"],
         ])
 
@@ -1161,7 +1161,7 @@ def export_data(
 ):
     """
     Role rules:
-    - operator: can download anything
+    - admin: can download anything
     - viewer / guest: can ONLY download 'files'
     """
 
@@ -1172,7 +1172,7 @@ def export_data(
     export_type = export_type.lower().strip()
 
     # Enforce role restrictions
-    if role != "operator":
+    if role != "admin":
         # viewer or guest
         if export_type != "files":
             raise HTTPException(
@@ -1191,7 +1191,7 @@ def export_data(
             },
         )
 
-    # 2) checkouts only (operator only, enforced above)
+    # 2) checkouts only (admin only, enforced above)
     elif export_type == "checkouts":
         checkouts_buf = _export_checkouts_csv()
         return StreamingResponse(
@@ -1202,7 +1202,7 @@ def export_data(
             },
         )
 
-    # 3) everything -> zip (operator only, enforced above)
+    # 3) everything -> zip (admin only, enforced above)
     elif export_type == "all":
         files_buf = _export_files_csv()
         checkouts_buf = _export_checkouts_csv()
@@ -1235,9 +1235,9 @@ def file_stats(request: Request):
     role = user.get("role", "guest") if user else "guest"
 
     # guests/viewers should not see deleted counts?
-    # Up to you. In screenshot you're showing archived count even to operator.
+    # Up to you. In screenshot you're showing archived count even to admin.
     # Let's keep behavior:
-    # - operator: sees all 3 numbers
+    # - admin: sees all 3 numbers
     # - viewer/guest: sees only active + total_active (same number twice effectively)
 
     rows = db_read("""
@@ -1254,7 +1254,7 @@ def file_stats(request: Request):
         "total_count": 0,
     }
 
-    if role != "operator":
+    if role != "admin":
         # hide archived_count explicitly
         stats["archived_count"] = None
         stats["total_count"] = stats["active_count"]

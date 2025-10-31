@@ -14,3 +14,7 @@
     .note { color:#666; font-size:.85rem; }
     .danger { color:#9c1a1a; }
     .ok { color:#145d2e; }
+
+
+.tab-panel { display: block !important; visibility: visible !important; opacity: 1 !important; }
+.tab-panel[hidden] { display: none !important; }

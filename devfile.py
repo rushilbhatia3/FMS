@@ -6,7 +6,7 @@ def old():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                role TEXT NOT NULL CHECK (role IN ('operator','viewer')),
+                role TEXT NOT NULL CHECK (role IN ('admin','viewer')),
                 active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
                 created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
             );
@@ -27,8 +27,8 @@ def old():
                     (email, pw_hash, role)
                 )
 
-            # operator can add/delete/checkout/etc
-            _mk_user("rushil@hocc.com", "hocc@1234", "operator")
+            # admin can add/delete/checkout/etc
+            _mk_user("rushil@hocc.com", "hocc@1234", "admin")
 
             # viewer is read-only
             _mk_user("user@hocc.com", "rushil@12", "viewer")

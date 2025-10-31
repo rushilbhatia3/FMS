@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter
 from pydantic import BaseModel, EmailStr, field_validator
-from auth import require_operator  # <- use your real dependency
 import db
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -19,10 +18,10 @@ class SettingsOut(SettingsIn):
     pass
 
 @router.get("", response_model=SettingsOut)
-def read_settings(_: dict = Depends(require_operator)):
+def read_settings():
     return SettingsOut(**db.get_settings())
 
 @router.put("", response_model=SettingsOut)
-def write_settings(payload: SettingsIn, _: dict = Depends(require_operator)):
+def write_settings(payload: SettingsIn):
     db.update_settings(payload.admin_email, payload.reminder_freq_minutes)
     return SettingsOut(**db.get_settings())

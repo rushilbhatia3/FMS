@@ -25,7 +25,7 @@ async function loadServerSettings() {
     freqEl.value       = data.reminder_freq_minutes ?? 180;
     serverStatus.textContent = "· ready";
     serverStatus.className = "note ok";
-    serverHint.textContent = "Operator access required to save.";
+    serverHint.textContent = "admin access required to save.";
   } catch (e) {
     serverStatus.textContent = "· offline";
     serverStatus.className = "note danger";

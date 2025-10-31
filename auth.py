@@ -89,18 +89,18 @@ def get_current_user(request: Request) -> Optional[dict]:
     # { "email": ..., "role": ... }
     return {"email": data.get("email"), "role": data.get("role")}
 
-def require_operator(user: Optional[dict]):
+def require_admin(user: Optional[dict] = Depends(get_current_user)):
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated."
         )
-    if user.get("role") != "operator":
+    # allow admin OR admin (adjust if you truly want admin-only)
+    if user.get("role") not in ("admin", "admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operator role required."
+            detail="admin role required."
         )
-
 
 
 @router.post("/api/session/login")
@@ -160,7 +160,7 @@ class NewUser(BaseModel):
     role: str 
     
 @router.get("/users")
-def list_users(user=Depends(require_operator)):
+def list_users(user=Depends(require_admin)):
     from db import get_conn
     with closing(get_conn()) as conn:
         conn.row_factory = sqlite3.Row
@@ -168,8 +168,10 @@ def list_users(user=Depends(require_operator)):
         return [dict(r) for r in rows]
 
 @router.post("/users", status_code=201)
-def create_user(payload: NewUser, user=Depends(require_operator)):
-    role = payload.role.lower().strip()
+def create_user(payload: NewUser = Body(...)):
+    email_norm = payload.email.strip().lower()      # 👈 normalize once
+    role = payload.role.strip().lower()
+
     if role not in ("admin", "user"):
         raise HTTPException(status_code=400, detail="role must be 'admin' or 'user'")
 
@@ -178,17 +180,20 @@ def create_user(payload: NewUser, user=Depends(require_operator)):
         raise HTTPException(status_code=400, detail="password too short (min 8 chars)")
 
     pw_hash = bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
+    print(f"Creating user: {email_norm} with role: {role} and password hash: {pw_hash}")
     from db import get_conn
     try:
         with closing(get_conn()) as conn, conn:
+            # Optional preflight to return a clearer message before hitting UNIQUE
+            exists = conn.execute("SELECT 1 FROM users WHERE email = ?", (email_norm,)).fetchone()
+            if exists:
+                raise HTTPException(status_code=409, detail=f"email already exists: {email_norm}")
+
             conn.execute("""
                 INSERT INTO users (email, password_hash, role)
                 VALUES (?, ?, ?)
-            """, (payload.email.lower(), pw_hash, role))
+            """, (email_norm, pw_hash, role))
         return {"ok": True}
     except sqlite3.IntegrityError:
-        raise HTTPException(status_code=409, detail="email already exists")
-    
-    
-    router = APIRouter(prefix="/api", tags=["auth"])
+        # Fallback if preflight missed something (e.g., NOCASE index)
+        raise HTTPException(status_code=409, detail=f"email already exists: {email_norm}")

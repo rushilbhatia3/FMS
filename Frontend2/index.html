@@ -404,7 +404,7 @@
             id="added_by"
             name="added_by"
             class="form-input"
-            placeholder="Defaults to 'operator' if left empty"
+            placeholder="Defaults to 'admin' if left empty"
           />
         </label>
 
@@ -637,25 +637,25 @@
 
     <!-- Role tabs -->
     <div class="session-tabs">
-      <button id="sessionTabOperator" class="session-tab session-tab-active" type="button">
-        Operator
+      <button id="sessionTabadmin" class="session-tab session-tab-active" type="button">
+        admin
       </button>
       <button id="sessionTabViewer" class="session-tab" type="button">
-        Viewer
+        User
       </button>
       
     </div>
 
-    <!-- Operator panel -->
-    <div id="sessionPanelOperator" class="session-panel session-panel-active">
-      <form id="sessionOperatorForm" class="session-form" autocomplete="off">
+    <!-- admin panel -->
+    <div id="sessionPaneladmin" class="session-panel session-panel-active">
+      <form id="sessionadminForm" class="session-form" autocomplete="off">
         <label class="session-field">
           <span class="session-label">Email</span>
           <input
             type="email"
             id="opEmail"
             class="session-input"
-            placeholder="operator@example.com"
+            placeholder="admin@example.com"
             required
           />
         </label>
@@ -679,7 +679,7 @@
             type="submit"
             class="btn btn-primary wide-btn"
           >
-            Sign in as Operator
+            Sign in as admin
           </button>
         </div>
         
@@ -731,7 +731,7 @@
         </button>
       </div>
     <div class="session-hint">
-      Access is logged. Operator mode can move, edit, and archive files.
+      Access is logged. admin mode can move, edit, and archive files.
     </div>
   </div>
 </div>
