@@ -1,3 +1,6 @@
+from contextlib import closing
+
+import bcrypt
 import db
 def old():
     with db._connect() as cursor: 
@@ -58,4 +61,44 @@ def executor(executee):
     with db._connect() as cursor: 
         cursor.executescript(executee)
     
-executor(execute)
+#executor(execute)
+
+
+def reset_users():
+    print(" Resetting all users...")
+    with closing(db.get_conn()) as conn, conn:
+        # 1️⃣  Drop all existing users
+        conn.execute("DELETE FROM users;")
+
+        # 2️⃣  Optionally reset auto-increment counter
+        conn.execute("DELETE FROM sqlite_sequence WHERE name='users';")
+
+        # 3️⃣  Define your new base users
+        seed_users = [
+            {
+                "email": "admin@hocc.com",
+                "password": "12345678",
+                "role": "admin",
+            },
+            {
+                "email": "rushil@hocc.com",
+                "password": "Bread@1234",
+                "role": "admin",
+            },
+            {
+                "email": "user@hocc.com",
+                "password": "Rushil@12",
+                "role": "user",
+            },
+        ]
+
+        # 4️⃣  Insert them with bcrypt hashes
+        for u in seed_users:
+            pw_hash = bcrypt.hashpw(u["password"].encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            conn.execute(
+                "INSERT INTO users (email, password_hash, role, active) VALUES (?, ?, ?, 1)",
+                (u["email"].lower(), pw_hash, u["role"])
+            )
+        print(f"✅  Inserted {len(seed_users)} users.")
+
+reset_users()

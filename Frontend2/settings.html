@@ -87,6 +87,25 @@
               </label>
               <small class="hint">When enabled, the UI uses your last choice instead of the default.</small>
             </div>
+            <div class="field">
+              <label for="pref_status_filter">Default status filter</label>
+              <select id="pref_status_filter" name="pref_status_filter">
+                <option value="">All files</option>
+                <option value="available">Available only</option>
+                <option value="out">Checked out only</option>
+              </select>
+              <small class="hint">Applied on app load unless you change it there.</small>
+            </div>
+
+            <!-- Show Deleted by Default -->
+            <div class="field">
+              <label for="pref_show_deleted">Show deleted by default</label>
+              <select id="pref_show_deleted" name="pref_show_deleted">
+                <option value="false">No</option>
+                <option value="true">Yes</option>
+              </select>
+              <small class="hint">If “Yes”, deleted rows are visible when you open the app.</small>
+            </div>
 
             <div class="actions">
               <button type="submit" class="btn btn-primary" id="saveTableBtn">Save table prefs</button>
@@ -133,6 +152,27 @@
             </div>
 
             <p id="usersMsg" class="form-msg" hidden></p>
+
+            <div class="users-list-wrap">
+            <div class="users-list-head">
+              <h3 class="users-title">Current users</h3>
+              <button type="button" id="refreshUsersBtn" class="btn btn-secondary btn-compact">Refresh</button>
+            </div>
+
+            <table class="users-table" id="usersTable" aria-describedby="usersHelp">
+              <thead>
+                <tr>
+                  <th scope="col">Email</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Created</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody">
+                <tr class="empty"><td colspan="3">No users yet.</td></tr>
+              </tbody>
+            </table>
+            <p id="usersHelp" class="import-hint">Admins/operators can add users above.</p>
+          </div>
           </form>
 
           <!-- (Optional) later: list current users -->

@@ -192,20 +192,18 @@ viewerFormEl.addEventListener('submit', async (e) => {
 
 // logout
 if (logoutBtn) {
-  logoutBtn.addEventListener('click', async () => {
+  logoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
     try {
       await fetch('/api/session/logout', {
         method: 'POST',
         credentials: 'include'
       });
-    } catch (err) {
-      // ignore network fail
+    } catch (_) {
+      // ignore
     }
-    currentUser = null;
-    applyRoleUI();
-    updateHeaderUserInfo();
-    showSessionModal();
-    await loadFiles();
+    // Redirect to the public landing/sign-in
+    window.location.replace('homepage.html#signin');
   });
 }
 
@@ -426,6 +424,10 @@ const statusFilterEl = document.getElementById('statusFilter');
         loadFiles();
       });
 }
+
+// Apply defaults on boot (only if elements exist)
+if (statusFilterEl) statusFilterEl.value = readDefaultStatusFilter();     // '', 'available', 'out'
+if (showDeletedEl)  showDeletedEl.checked = readDefaultShowDeleted(); 
 
 
 //time management
@@ -1391,6 +1393,13 @@ document.querySelectorAll('th.sortable').forEach(th => {
     }
   } catch (_) {}
 })();
+
+function readDefaultStatusFilter() {
+  return localStorage.getItem('table.filter.status') || ''; // '', 'available', 'out'
+}
+function readDefaultShowDeleted() {
+  return localStorage.getItem('table.showDeleted.default') === 'true';
+}
 
 
 //IIFE

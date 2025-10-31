@@ -76,7 +76,7 @@ def innitDB():
           holder_name    TEXT NOT NULL,
           checkout_at    TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
           return_at      TEXT,
-          admin_name  TEXT NOT NULL DEFAULT 'admin',
+          operator_name  TEXT NOT NULL DEFAULT 'admin',
           note           TEXT,
           -- Timeline guard: return cannot predate checkout
           CHECK (return_at IS NULL OR return_at >= checkout_at),
@@ -197,7 +197,7 @@ def add_file(
     require_admin(user)
 
     # who is performing the add (use email from session)
-    admin_name = (user.get("email") or "admin").strip()
+    operator_name = (user.get("email") or "admin").strip()
 
     # validations
     clean_name = (name or "").strip()
@@ -263,7 +263,7 @@ def add_file(
         clean_system_number,
         clean_shelf,
         clearance_level,
-        admin_name,
+        operator_name,
     )
 
     try:
@@ -283,7 +283,7 @@ def add_file(
             "shelf": clean_shelf,
         },
         "clearance_level": clearance_level,
-        "added_by": admin_name,
+        "added_by": operator_name,
         "status": "created"
     }
 
@@ -593,7 +593,7 @@ def checkout_file(
 
     require_admin(user)
 
-    admin_name = (user.get("email") or "admin").strip()
+    operator_name = (user.get("email") or "admin").strip()
 
     row = db_read(
         "SELECT id, is_deleted FROM files WHERE id = ?",
@@ -632,10 +632,10 @@ def checkout_file(
     try:
         checkout_id = db_write(
             """
-            INSERT INTO checkouts (file_id, holder_name, admin_name, note)
+            INSERT INTO checkouts (file_id, holder_name, operator_name, note)
             VALUES (?, ?, ?, ?)
             """,
-            (file_id, clean_holder, admin_name, note),
+            (file_id, clean_holder, operator_name, note),
         )
     except Exception as e:
         raise HTTPException(
@@ -648,7 +648,7 @@ def checkout_file(
         "file_id": file_id,
         "checkout_id": checkout_id,
         "holder_name": clean_holder,
-        "admin_name": admin_name,
+        "operator_name": operator_name,
     }
 
 
@@ -666,7 +666,7 @@ def return_file(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated.")
     require_admin(user)
-    admin_name = user.get("email", "admin")
+    operator_name = user.get("email", "admin")
 
     file_row = db_read("SELECT id FROM files WHERE id = ?", (file_id,))
     if not file_row:
@@ -692,11 +692,11 @@ def return_file(
         """
         UPDATE checkouts
         SET return_at = CURRENT_TIMESTAMP,
-            admin_name = ?,
+            operator_name = ?,
             note = ?
         WHERE id = ?
         """,
-        (admin_name, final_note, checkout_id),
+        (operator_name, final_note, checkout_id),
     )
 
     return {"status": "returned", "file_id": file_id, "note": final_note}
@@ -747,7 +747,7 @@ def file_details(file_id: int):
             c.holder_name,
             c.checkout_at,
             c.return_at,
-            c.admin_name,
+            c.operator_name,
             c.note
         FROM checkouts c
         WHERE c.file_id = ?
@@ -1120,7 +1120,7 @@ def _export_checkouts_csv() -> io.StringIO:
         holder_name,
         checkout_at,
         return_at,
-        admin_name,
+        operator_name,
         note
     FROM checkouts
     ORDER BY checkout_at DESC
@@ -1136,7 +1136,7 @@ def _export_checkouts_csv() -> io.StringIO:
         "holder_name",
         "checkout_at",
         "return_at",
-        "admin_name",
+        "operator_name",
         "note"
     ])
 
@@ -1147,7 +1147,7 @@ def _export_checkouts_csv() -> io.StringIO:
             r["holder_name"],
             r["checkout_at"],
             r["return_at"],
-            r["admin_name"],
+            r["operator_name"],
             r["note"],
         ])
 

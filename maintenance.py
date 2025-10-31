@@ -281,7 +281,7 @@ def _checkout_row_to_record(row: Dict[str, str]) -> Dict[str, Any]:
       holder_name,
       checkout_at,
       return_at,
-      admin_name,
+      operator_name,
       note
     """
     def clean(x: Optional[str]) -> Optional[str]:
@@ -300,7 +300,7 @@ def _checkout_row_to_record(row: Dict[str, str]) -> Dict[str, Any]:
         "holder_name":     clean(holder_raw),
         "checkout_at":     clean(row.get("checkout_at")),
         "return_at":       clean(row.get("return_at")),
-        "admin_name":   clean(row.get("admin_name")) or "admin",
+        "operator_name":   clean(row.get("operator_name")) or "admin",
         "note":            clean(row.get("note")),
     }
 
@@ -343,7 +343,7 @@ def _insert_checkout_record(rec: Dict[str, Any]) -> None:
                 holder_name,
                 checkout_at,
                 return_at,
-                admin_name,
+                operator_name,
                 note
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -354,7 +354,7 @@ def _insert_checkout_record(rec: Dict[str, Any]) -> None:
                 rec["holder_name"],
                 rec["checkout_at"],
                 rec["return_at"],
-                rec["admin_name"],
+                rec["operator_name"],
                 rec["note"],
             ),
         )
@@ -367,7 +367,7 @@ def _insert_checkout_record(rec: Dict[str, Any]) -> None:
                 holder_name,
                 checkout_at,
                 return_at,
-                admin_name,
+                operator_name,
                 note
             )
             VALUES (?, ?, ?, ?, ?, ?)
@@ -377,7 +377,7 @@ def _insert_checkout_record(rec: Dict[str, Any]) -> None:
                 rec["holder_name"],
                 rec["checkout_at"],
                 rec["return_at"],
-                rec["admin_name"],
+                rec["operator_name"],
                 rec["note"],
             ),
         )

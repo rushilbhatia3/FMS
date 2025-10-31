@@ -1,3 +1,53 @@
+async function fetchUsers() {
+  const res = await fetch('/users', { credentials: 'include' });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || 'Failed to load users.');
+  }
+  return res.json(); // [{email, role, created_at}]
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  // created_at from SQLite is typically "YYYY-MM-DD HH:MM:SS"
+  const t = s.replace(' ', 'T');
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? s : d.toLocaleString();
+}
+
+function roleClass(role) {
+  const r = String(role || '').toLowerCase();
+  if (r === 'admin') return 'role-admin';
+  if (r === 'operator') return 'role-operator';
+  return 'role-user';
+}
+
+function renderUsers(list) {
+  const tbody = document.getElementById('usersTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  if (!Array.isArray(list) || list.length === 0) {
+    tbody.innerHTML = `<tr class="empty"><td colspan="3">No users yet.</td></tr>`;
+    return;
+  }
+
+  const rows = list.map(u => {
+    const email = u.email || '—';
+    const role  = u.role || 'user';
+    const created = fmtDate(u.created_at);
+    return `
+      <tr>
+        <td>${email}</td>
+        <td><span class="role-badge ${roleClass(role)}">${role}</span></td>
+        <td>${created}</td>
+      </tr>
+    `;
+  }).join('');
+  tbody.innerHTML = rows;
+}
+
+
 // ===== Config for endpoints (adjust if your backend differs) =====
 const USERS_ENDPOINT = '/users'; // POST {email, role} -> 201/200
 
@@ -95,6 +145,16 @@ function populateForms(s) {
   const savedRemember = localStorage.getItem('table.pageSize.rememberLast') === 'true';
   if (defSel) defSel.value = savedDefault;
   if (rememberCb) rememberCb.checked = savedRemember;
+
+  const statusSel = $('#pref_status_filter');
+  const showDelSel = $('#pref_show_deleted');
+
+  const savedStatus   = localStorage.getItem('table.filter.status') || '';
+  const savedShowDel  = localStorage.getItem('table.showDeleted.default') || 'false';
+
+  if (statusSel)  statusSel.value  = savedStatus;        // '', 'available', 'out'
+  if (showDelSel) showDelSel.value = savedShowDel;       // 'true' | 'false'
+
 }
 
 // ----- Forms: General -----
@@ -156,31 +216,52 @@ function wireTableForm() {
   const form = $('#formTable');
   const defSel = $('#table_rows_default');
   const rememberCb = $('#table_rows_remember');
+  const statusSel = $('#pref_status_filter');      // ✨ add
+  const showDelSel = $('#pref_show_deleted');      // ✨ add
   const saveBtn = $('#saveTableBtn');
   const resetBtn = $('#resetTableBtn');
   const msgEl = $('#tableMsg');
 
   form?.addEventListener('submit', (e) => {
-    e.preventDefault(); clearMsg(msgEl);
+    e.preventDefault(); 
+    clearMsg(msgEl);
+
     const size = defSel?.value || '50';
     const remember = !!rememberCb?.checked;
+
+    const statusVal  = statusSel?.value || '';
+    const showDelVal = showDelSel?.value || 'false'; // 'true' | 'false'
+
     localStorage.setItem('table.pageSize.default', size);
     localStorage.setItem('table.pageSize.rememberLast', String(remember));
-    showMsg(msgEl, 'Table preferences saved.', 'success');
+    localStorage.setItem('table.filter.status', statusVal);
+    localStorage.setItem('table.showDeleted.default', showDelVal);
+
+    showMsg(msgEl, 'Table preferences saved.', 'success');  // ✨ use showMsg
   });
 
   resetBtn?.addEventListener('click', () => {
     clearMsg(msgEl);
+
     localStorage.removeItem('table.pageSize.default');
     localStorage.removeItem('table.pageSize.rememberLast');
+    localStorage.removeItem('table.filter.status');
+    localStorage.removeItem('table.showDeleted.default');
+
     if (defSel) defSel.value = '50';
     if (rememberCb) rememberCb.checked = false;
-    showMsg(msgEl, 'Table preferences reset to defaults (50 rows).', 'success');
+    if (statusSel) statusSel.value = '';
+    if (showDelSel) showDelSel.value = 'false';
+
+    showMsg(
+      msgEl,
+      'Table preferences reset to defaults (50 rows, all files, show deleted = No).',
+      'success'
+    );
   });
 }
-
 // ----- Forms: Users (Add user) -----
-function wireUsersForm() {
+async function wireUsersForm() {
   const form    = document.getElementById('formUsers');
   const emailEl = document.getElementById('user_email');
   const roleEl  = document.getElementById('user_role');
@@ -243,15 +324,40 @@ function wireUsersForm() {
 
       showMsg(msgEl, 'User added successfully.', 'success');
       if (emailEl) emailEl.value = '';
-      if (roleEl)  roleEl.value  = 'viewer';
+      if (roleEl)  roleEl.value  = 'user';
       if (pwEl)    pwEl.value    = '';
-
+    await fetchUsers().then(renderUsers).catch(err => {
+        console.warn('Refresh users failed:', err?.message || err);
+    });
     } catch (err) {
       showMsg(msgEl, err.message || 'Failed to add user.', 'error');
     } finally {
       if (addBtn) { addBtn.disabled = false; addBtn.textContent = 'Add user'; }
     }
   });
+
+
+  try {
+  const users = await fetchUsers();
+  renderUsers(users);
+} catch (err) {
+  console.warn('Failed to load users:', err?.message || err);
+}
+
+// Manual refresh
+document.getElementById('refreshUsersBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('refreshUsersBtn');
+  const prev = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+  try {
+    const users = await fetchUsers();
+    renderUsers(users);
+  } catch (err) {
+    alert(err.message || 'Failed to refresh users'); // or surface in usersMsg
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = prev || 'Refresh'; }
+  }
+});
 
   resetBtn?.addEventListener('click', () => {
     clearMsg(msgEl);
