@@ -4,7 +4,7 @@ import zipfile
 from fastapi import FastAPI, HTTPException, Request, Response, status, Path, Body, Query, UploadFile, File
 import sqlite3, io, openpyxl
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from maintenance import router as maintenance_router
 from auth import router as auth_router
 from db import db_read, db_write
@@ -1263,6 +1263,11 @@ def file_stats(request: Request):
 
 
 innitDB()
+
+@app.get("/")
+def root():
+    # always land on homepage at the root URL
+    return RedirectResponse(url="app/homepage.html")
 
 
 app.include_router(maintenance_router)

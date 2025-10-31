@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FMS — Home</title>
+  <link rel="stylesheet" href="home.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="home-wrap">
+    <div class="home-card">
+      <div class="home-head">
+        <div class="home-title">FMS — File Management System</div>
+      </div>
+      <div class="home-sub">
+        Welcome. Choose what you’d like to do. You can browse as a guest, sign in to manage files, or adjust system settings.
+      </div>
+
+      <div class="home-actions">
+        <div class="card">
+          <h3>Open the File System</h3>
+          <p>Search, view, and (if authorized) check out/return files.</p>
+          <div class="btn-row">
+            <a class="btn btn-primary" href="index.html">Open FMS</a>
+            <a class="btn btn-ghost" href="index.html#guest">Continue as Guest</a>
+            <a class="btn btn-ghost" href="index.html#signin">Sign In</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Settings</h3>
+          <p>Manage server settings (admin email, reminder frequency) and local preferences (page size, filters).</p>
+          <div class="btn-row">
+            <a class="btn btn-primary" href="settings.html">Open Settings</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="made-by">
+        v1.0 · Your access will be logged. Operator mode can move, edit, and archive files.
+      </div>
+    </div>
+  </div>
+
+
+<script>
+  (async function maybeForwardToApp() {
+    try {
+      const r = await fetch('/api/session/me', { credentials: 'include' });
+      if (r.ok) {
+        // already signed in -> skip homepage
+        window.location.replace('index.html');
+      }
+    } catch (_) { /* ignore; stay on homepage */ }
+  })();
+</script>
+
+
+</body>
+</html>

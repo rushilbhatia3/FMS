@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FMS — Settings</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="settings-shell">
+      <div class="settings-head">
+        <div class="settings-title">Settings</div>
+        <div class="btn-row">
+          <a class="btn" href="homepage.html">← Home</a>
+          <a class="btn" href="index.html">Open FMS</a>
+        </div>
+      </div>
+
+      <!-- Server settings -->
+      <div class="card" id="serverCard">
+        <h3>Server Settings <span id="serverStatus" class="note"></span></h3>
+        <div class="form-row">
+          <label for="admin_email">Notification Email</label>
+          <input id="admin_email" type="email" placeholder="alerts@example.com" />
+        </div>
+        <div class="form-row">
+          <label for="reminder_freq_minutes">Reminder Frequency (minutes)</label>
+          <input id="reminder_freq_minutes" type="number" min="1" max="1440" />
+        </div>
+        <div class="btn-row">
+          <button id="serverSaveBtn" class="btn btn-primary">Save Server Settings</button>
+          <button id="serverReloadBtn" class="btn btn-quiet">Reload</button>
+        </div>
+        <div class="note" id="serverHint">Operator access required to save.</div>
+      </div>
+
+      <!-- Local preferences (stored in browser only) -->
+      <div class="card">
+        <h3>Local Preferences (this browser only)</h3>
+
+        <div class="form-row">
+          <label for="pref_page_size">Default Page Size</label>
+          <select id="pref_page_size">
+            <option>50</option>
+            <option selected>100</option>
+            <option>250</option>
+            <option>500</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="pref_status_filter">Default Status Filter</label>
+          <select id="pref_status_filter">
+            <option value="">All files</option>
+            <option value="available">Available only</option>
+            <option value="out">Checked out only</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="pref_show_deleted">Show Deleted by Default</label>
+          <select id="pref_show_deleted">
+            <option value="false" selected>No</option>
+            <option value="true">Yes</option>
+          </select>
+        </div>
+
+        <div class="btn-row">
+          <button id="prefsSaveBtn" class="btn btn-primary">Save Preferences</button>
+          <button id="prefsResetBtn" class="btn btn-quiet">Reset</button>
+        </div>
+        <div class="note">These settings are stored in <code>localStorage</code> and only affect this browser.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="settings.js" defer></script>
+</body>
+</html>

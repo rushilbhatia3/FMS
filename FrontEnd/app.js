@@ -1,3 +1,18 @@
+(async function guardSessionOrRedirect() {
+  try {
+    const res = await fetch('/api/session/me', { credentials: 'include' });
+    if (!res.ok) {
+      // no valid session -> go to homepage
+      window.location.replace('homepage.html');
+      return;
+    }
+  } catch (e) {
+    // network or server issue -> safest to send user to homepage
+    window.location.replace('homepage.html');
+    return;
+  }
+})();
+
 //auth before everything 
 let currentUser = null;
 const guestBtn = document.getElementById('guestBtn');
@@ -59,7 +74,7 @@ const logoutBtn         = document.getElementById('logoutBtn');
 
 
 let currentPage = 1;
-const PAGE_SIZE = 100;
+let PAGE_SIZE = 100;
 
 // tab switching
 function activateOperatorTab() {
@@ -173,7 +188,7 @@ if (logoutBtn) {
         credentials: 'include'
       });
     } catch (err) {
-      // ignore network fail, we'll still clear local state
+      // ignore network fail
     }
     currentUser = null;
     applyRoleUI();
@@ -1334,6 +1349,37 @@ document.querySelectorAll('th.sortable').forEach(th => {
 });
 
 
+// app.js — before first loadFiles()
+
+(function applyLocalPrefs() {
+  try {
+    const pageSizePref = localStorage.getItem('FMS_PREF_PAGE_SIZE');
+    if (pageSizePref) {
+      // If you want PAGE_SIZE to be dynamic, turn const into let at top
+      if (typeof PAGE_SIZE !== "undefined") {
+        // Replace only if numeric and sane
+        const n = parseInt(pageSizePref, 10);
+        if (Number.isFinite(n) && n > 0 && n <= 500) {
+          // You declared PAGE_SIZE as const; change it to let to allow this:
+          window.PAGE_SIZE = n;
+        }
+      }
+    }
+    const statusPref = localStorage.getItem('FMS_PREF_STATUS');
+    const showDelPref = localStorage.getItem('FMS_PREF_SHOW_DELETED');
+
+    if (statusPref !== null) {
+      const statusFilterEl = document.getElementById('statusFilter');
+      if (statusFilterEl) statusFilterEl.value = statusPref;
+    }
+    if (showDelPref !== null) {
+      const showDeletedEl = document.getElementById('showDeleted');
+      if (showDeletedEl) showDeletedEl.checked = (showDelPref === 'true');
+    }
+  } catch (_) {}
+})();
+
+
 //IIFE
 (async () => {
   await fetchSession();        // if not logged in, currentUser stays null, role UI becomes guest
@@ -1348,4 +1394,16 @@ document.querySelectorAll('th.sortable').forEach(th => {
 
   await loadFiles();
   updateSortIndicators();
+})();
+
+// Deep-link helpers for home.html
+(function handleDeepLink() {
+  const hash = (window.location.hash || "").toLowerCase();
+  if (hash === "#guest") {
+    const guestBtn = document.getElementById('guestBtn');
+    if (guestBtn) guestBtn.click();
+  } else if (hash === "#signin") {
+    const showModal = (typeof showSessionModal === "function");
+    if (showModal) showSessionModal();
+  }
 })();
