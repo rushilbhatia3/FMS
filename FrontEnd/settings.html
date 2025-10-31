@@ -73,6 +73,50 @@
         </div>
         <div class="note">These settings are stored in <code>localStorage</code> and only affect this browser.</div>
       </div>
+
+      <div class="card" id="usersCard">
+  <h3>Users</h3>
+  <div class="note" style="margin-bottom:.5rem;">Admins can create users and assign roles.</div>
+
+  <div class="form-row">
+    <label for="new_user_email">Email</label>
+    <input id="new_user_email" type="email" placeholder="user@example.com" />
+  </div>
+
+  <div class="form-row">
+    <label for="new_user_password">Password</label>
+    <input id="new_user_password" type="password" placeholder="Strong password" />
+  </div>
+
+  <div class="form-row">
+    <label for="new_user_role">Role</label>
+    <select id="new_user_role">
+      <option value="user" selected>User</option>
+      <option value="admin">Admin</option>
+    </select>
+  </div>
+
+  <div class="btn-row">
+    <button id="createUserBtn" class="btn btn-primary">Create User</button>
+    <button id="reloadUsersBtn" class="btn btn-quiet">Reload</button>
+  </div>
+
+  <div class="note" id="usersHint" style="margin-top:.5rem;">Operator/Admin access required.</div>
+
+  <div style="margin-top:1rem;">
+    <table id="usersTable" style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left; border-bottom:1px solid #eee; padding:.5rem;">Email</th>
+          <th style="text-align:left; border-bottom:1px solid #eee; padding:.5rem;">Role</th>
+          <th style="text-align:left; border-bottom:1px solid #eee; padding:.5rem;">Created</th>
+        </tr>
+      </thead>
+      <tbody id="usersTbody"></tbody>
+    </table>
+  </div>
+</div>
+
     </div>
   </div>
 

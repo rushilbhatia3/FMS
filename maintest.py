@@ -1274,4 +1274,4 @@ app.include_router(maintenance_router)
 app.include_router(auth_router)
 app.include_router(settings_router)
 
-app.mount("/app", StaticFiles(directory="/Users/rushilb/Desktop/DBMS/FrontEnd", html=True), name="FrontEnd")
+app.mount("/app", StaticFiles(directory="/Users/rushilb/Desktop/DBMS/Frontend2", html=True), name="FrontEnd")

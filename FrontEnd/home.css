@@ -1,16 +1,105 @@
 /* small inline tweaks specific to the home hero */
-    .home-wrap { min-height: 100vh; display:flex; align-items:center; justify-content:center; background:#f6f7f9; }
-    .home-card { background:#fff; border:1px solid #e6e6e6; border-radius:16px; padding:2rem; width:min(720px, 92vw); box-shadow:0 12px 28px rgba(0,0,0,.08); }
-    .home-head { display:flex; gap:1rem; align-items:center; margin-bottom:1rem; }
-    .home-title { font-size:1.4rem; font-weight:700; letter-spacing:.2px; }
-    .home-sub { color:#555; margin-bottom:1.5rem; }
-    .home-actions { display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-top:1rem; }
-    .home-actions .card { border:1px solid #eee; border-radius:12px; padding:1rem; background:#fafafa; }
-    .home-actions .card h3 { margin:0 0 .5rem; font-size:1rem; }
-    .home-actions .card p { margin:0 0 .75rem; color:#555; font-size:.9rem; }
-    .btn-row { display:flex; gap:.5rem; flex-wrap:wrap; }
-    .btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.6rem .9rem; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; }
-    .btn-primary { background:#182E6F; border-color:#182E6F; color:#fff; }
-    .btn-ghost { background:#fff; border-color:#ccc; color:#333; }
-    .made-by { margin-top:1.25rem; font-size:.8rem; color:#777; }
-    @media (max-width: 720px) { .home-actions { grid-template-columns: 1fr; } }
+    .home-wrap { 
+        min-height: 100vh; 
+        display:flex; 
+        align-items:center; 
+        justify-content:center; 
+        background:#f6f7f9; 
+    }
+
+
+    .home-card { 
+        background:#fff; 
+        border:1px solid #e6e6e6; 
+        border-radius:16px; 
+        padding:2rem; 
+        width:min(720px, 92vw); 
+        box-shadow:0 12px 28px rgba(0,0,0,.08); 
+    }
+
+
+    .home-head { 
+        display:flex; 
+        gap:1rem; 
+        align-items:center; 
+        margin-bottom:1rem; 
+        justify-content:space-between;
+    }
+
+    .home-title { 
+        font-size:1.4rem; 
+        font-weight:700; 
+        letter-spacing:.2px; 
+    }
+
+    .home-sub { 
+        color:#555; 
+        margin-bottom:1.5rem; 
+    }
+
+    .home-actions { 
+        display:grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap:1rem; 
+        margin-top:1rem; 
+    }
+
+    .home-actions .card { 
+        border:1px solid #eee; 
+        border-radius:12px; 
+        padding:1rem; 
+        background:#fafafa; 
+    }
+
+    .home-actions .card h3 { 
+        margin:0 0 .5rem; 
+        font-size:1rem; 
+    }
+
+    .home-actions .card p {
+        margin:0 0 .75rem; 
+        color:#555; 
+        font-size:.9rem; 
+    }
+
+    .btn-row { 
+        display:flex; 
+        gap:.5rem; 
+        flex-wrap:wrap; 
+    }
+
+    .btn { 
+        display:inline-flex; 
+        align-items:center; 
+        justify-content:center; 
+        gap:.4rem; 
+        padding:.6rem .9rem; 
+        border-radius:8px; 
+        border:1px solid #ddd; 
+        background:#fff; 
+        cursor:pointer; 
+    }
+
+    .btn-primary { 
+        background:#182E6F; 
+        border-color:#182E6F; 
+        color:#fff; 
+    }
+
+    .btn-ghost { 
+        background:#fff; 
+        border-color:#ccc; 
+        color:#333;
+     }
+
+    .made-by { 
+        margin-top:1.25rem;
+        font-size:.8rem; 
+        color:#777; 
+    }
+
+    @media (max-width: 720px) { 
+        .home-actions { 
+            grid-template-columns: 1fr;
+         } 
+        }

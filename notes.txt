@@ -8,3 +8,8 @@ l3 lighter
 
 30th October
 keep a note of the new helper settings in the db.py - these will have to be changed when you implemetn the rest of the settings menu 
+
+31st October:
+- we have been adding new stuff but i think there are going to be namespace issues mostly here: 
+    -> between expecting Admin and User Vs. ('operator','viewer')
+    -> 

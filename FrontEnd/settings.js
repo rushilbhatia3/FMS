@@ -112,3 +112,72 @@ prefsReset?.addEventListener('click', resetLocalPrefs);
 // ----- Init -----
 loadServerSettings();
 loadLocalPrefs();
+
+
+// ----- Users (admin only) -----
+const newUserEmailEl = document.getElementById('new_user_email');
+const newUserPwdEl   = document.getElementById('new_user_password');
+const newUserRoleEl  = document.getElementById('new_user_role');
+const createUserBtn  = document.getElementById('createUserBtn');
+const reloadUsersBtn = document.getElementById('reloadUsersBtn');
+const usersTbody     = document.getElementById('usersTbody');
+const usersHint      = document.getElementById('usersHint');
+
+async function loadUsers() {
+  usersTbody.innerHTML = `<tr><td colspan="3" style="padding:.5rem;color:#666;">Loading…</td></tr>`;
+  try {
+    const res = await fetch('/api/users', { credentials: 'include' });
+    if (!res.ok) {
+      usersTbody.innerHTML = `<tr><td colspan="3" style="padding:.5rem;color:#a33;">${res.status} — cannot load users</td></tr>`;
+      return;
+    }
+    const data = await res.json(); // expect [{email, role, created_at}]
+    usersTbody.innerHTML = (data.length ? data : []).map(u => `
+      <tr>
+        <td style="padding:.5rem;border-bottom:1px solid #f1f1f1;">${u.email}</td>
+        <td style="padding:.5rem;border-bottom:1px solid #f1f1f1;">${u.role}</td>
+        <td style="padding:.5rem;border-bottom:1px solid #f1f1f1;">${u.created_at || ''}</td>
+      </tr>
+    `).join('') || `<tr><td colspan="3" style="padding:.5rem;color:#666;">No users.</td></tr>`;
+  } catch (e) {
+    usersTbody.innerHTML = `<tr><td colspan="3" style="padding:.5rem;color:#a33;">Network error loading users</td></tr>`;
+  }
+}
+
+async function createUser() {
+  const email = (newUserEmailEl.value || '').trim();
+  const password = (newUserPwdEl.value || '').trim();
+  const role = newUserRoleEl.value;
+
+  if (!email || !password) {
+    alert('Email and password required.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password, role })
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      alert(`Create failed: ${res.status}\n${txt}`);
+      return;
+    }
+    newUserEmailEl.value = '';
+    newUserPwdEl.value = '';
+    newUserRoleEl.value = 'user';
+    await loadUsers();
+    alert('User created.');
+  } catch (e) {
+    alert('Network error while creating user: ' + e.message);
+  }
+}
+
+reloadUsersBtn?.addEventListener('click', loadUsers);
+createUserBtn?.addEventListener('click', createUser);
+
+// initialize users list (non-fatal if unauthorized)
+loadUsers();

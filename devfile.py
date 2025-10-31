@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT OR IGNORE INTO settings (id, admin_email, reminder_freq_minutes)
 VALUES (1, 'homeofcreativechaos@gmail.com', 180);
         """
-        
+       
 def executor(executee):
     with db._connect() as cursor: 
         cursor.executescript(executee)

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FMS — Settings</title>
+
+  <link rel="stylesheet" href="settings.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="settings-wrap">
+    <section class="settings-card" aria-labelledby="settingsTitle">
+      <header class="settings-head">
+        <h1 id="settingsTitle">Settings</h1>
+        <p class="sub">Manage admin email and reminder frequency.</p>
+      </header>
+
+      <div class="settings-grid">
+        <!-- Vertical Tabs -->
+        <nav class="tabs-vert" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
+          <button role="tab" aria-selected="true" aria-controls="tab-general" id="tabbtn-general"
+                  class="vtab active" data-tab="general">
+            General
+          </button>
+          <button role="tab" aria-selected="false" aria-controls="tab-reminders" id="tabbtn-reminders"
+                  class="vtab" data-tab="reminders">
+            Reminders
+          </button>
+        </nav>
+
+        <!-- Panels -->
+        <section id="tab-general" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-general">
+          <form id="formGeneral" class="form">
+            <div class="field">
+              <label for="admin_email">Admin email</label>
+              <input id="admin_email" name="admin_email" type="email" placeholder="admin@yourcompany.com" required />
+              <small class="hint">Alerts and notifications will be sent here.</small>
+            </div>
+
+            <div class="actions">
+              <button type="submit" class="btn btn-primary" id="saveGeneralBtn">Save changes</button>
+              <button type="button" class="btn btn-ghost" id="resetGeneralBtn">Reset</button>
+            </div>
+
+            <p id="generalMsg" class="form-msg" aria-live="polite" hidden></p>
+          </form>
+        </section>
+
+        <section id="tab-reminders" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-reminders" hidden>
+          <form id="formReminders" class="form">
+            <div class="field">
+              <label for="reminder_freq_minutes">Reminder frequency (minutes)</label>
+              <input id="reminder_freq_minutes" name="reminder_freq_minutes" type="number" min="1" max="1440" step="1" required />
+              <small class="hint">Allowed range: 1 to 1440 (once per day).</small>
+            </div>
+
+            <div class="actions">
+              <button type="submit" class="btn btn-primary" id="saveRemindersBtn">Save changes</button>
+              <button type="button" class="btn btn-ghost" id="resetRemindersBtn">Reset</button>
+            </div>
+
+            <p id="remindersMsg" class="form-msg" aria-live="polite" hidden></p>
+          </form>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="settings.js" defer></script>
+</body>
+</html>

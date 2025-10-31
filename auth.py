@@ -1,8 +1,12 @@
+from contextlib import closing
 import hmac, hashlib, base64, json, time, bcrypt
 from fastapi import APIRouter, Request, Response
-from fastapi import HTTPException, status, Body
+from fastapi import HTTPException, status, Body, Depends
 from typing import Optional
 import db
+from pydantic import BaseModel, EmailStr
+import sqlite3
+
 
 router = APIRouter()
 
@@ -97,6 +101,8 @@ def require_operator(user: Optional[dict]):
             detail="Operator role required."
         )
 
+
+
 @router.post("/api/session/login")
 def login(
     response: Response,
@@ -147,3 +153,42 @@ def session_me(request: Request):
 def logout(response: Response):
     _clear_session_cookie(response)
     return {"status": "logged_out"}
+
+class NewUser(BaseModel):
+    email: EmailStr
+    password: str
+    role: str 
+    
+@router.get("/users")
+def list_users(user=Depends(require_operator)):
+    from db import get_conn
+    with closing(get_conn()) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT email, role, created_at FROM users ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+@router.post("/users", status_code=201)
+def create_user(payload: NewUser, user=Depends(require_operator)):
+    role = payload.role.lower().strip()
+    if role not in ("admin", "user"):
+        raise HTTPException(status_code=400, detail="role must be 'admin' or 'user'")
+
+    pw = payload.password.strip()
+    if len(pw) < 8:
+        raise HTTPException(status_code=400, detail="password too short (min 8 chars)")
+
+    pw_hash = bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    from db import get_conn
+    try:
+        with closing(get_conn()) as conn, conn:
+            conn.execute("""
+                INSERT INTO users (email, password_hash, role)
+                VALUES (?, ?, ?)
+            """, (payload.email.lower(), pw_hash, role))
+        return {"ok": True}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="email already exists")
+    
+    
+    router = APIRouter(prefix="/api", tags=["auth"])

@@ -10,52 +10,138 @@
 <body>
   <div class="home-wrap">
     <div class="home-card">
-      <div class="home-head">
-        <div class="home-title">FMS — File Management System</div>
-      </div>
-      <div class="home-sub">
-        Welcome. Choose what you’d like to do. You can browse as a guest, sign in to manage files, or adjust system settings.
-      </div>
+      <div class="home-head" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;">
+  <div class="home-title">FMS — File Management System</div>
+  
+    </div>
+    <div class="home-sub">
+    Welcome. Choose what you’d like to do. You can browse as a guest, sign in to manage files, or adjust system settings.
+    </div>
 
       <div class="home-actions">
         <div class="card">
-          <h3>Open the File System</h3>
-          <p>Search, view, and (if authorized) check out/return files.</p>
-          <div class="btn-row">
-            <a class="btn btn-primary" href="index.html">Open FMS</a>
-            <a class="btn btn-ghost" href="index.html#guest">Continue as Guest</a>
-            <a class="btn btn-ghost" href="index.html#signin">Sign In</a>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Settings</h3>
-          <p>Manage server settings (admin email, reminder frequency) and local preferences (page size, filters).</p>
-          <div class="btn-row">
-            <a class="btn btn-primary" href="settings.html">Open Settings</a>
-          </div>
+            <h3>Welcome</h3>
+            <p>Sign in to manage files, or reach us for help.</p>
+            <div class="btn-row">
+            <a class="btn btn-primary" href="index.html#signin">Log in</a>
+            <a class="btn btn-ghost" href="index.html#guest">Browse as Guest</a>
+            <a class="btn" href="mailto:homeofcreativechaos@gmail.com">Contact support</a>
+            </div>
         </div>
       </div>
+  </div>
+</div>
 
-      <div class="made-by">
-        v1.0 · Your access will be logged. Operator mode can move, edit, and archive files.
+
+<!-- login / logout modal -->
+ <div id="sessionModal" class="session-modal">
+  <div class="session-card">
+    <div class="session-card-header">
+      <h2 class="session-card-title">File Access</h2>
+      <p class="session-card-desc">Choose your role and sign in.</p>
+    </div>
+
+    <!-- Role tabs -->
+    <div class="session-tabs">
+      <button id="sessionTabOperator" class="session-tab session-tab-active" type="button">
+        Operator
+      </button>
+      <button id="sessionTabViewer" class="session-tab" type="button">
+        Viewer
+      </button>
+      
+    </div>
+
+    <!-- Operator panel -->
+    <div id="sessionPanelOperator" class="session-panel session-panel-active">
+      <form id="sessionOperatorForm" class="session-form" autocomplete="off">
+        <label class="session-field">
+          <span class="session-label">Email</span>
+          <input
+            type="email"
+            id="opEmail"
+            class="session-input"
+            placeholder="operator@example.com"
+            required
+          />
+        </label>
+
+        <label class="session-field">
+          <span class="session-label">Password</span>
+          <input
+            type="password"
+            id="opPassword"
+            class="session-input"
+            placeholder="••••••••"
+            required
+          />
+        </label>
+
+        <div id="opError" class="session-error" role="alert"></div>
+
+        <div class="session-actions">
+          <button
+            id="opSignInBtn"
+            type="submit"
+            class="btn btn-primary wide-btn"
+          >
+            Sign in as Operator
+          </button>
+        </div>
+        
+      </form>
+    </div>
+
+    <!-- Viewer panel -->
+    <div id="sessionPanelViewer" class="session-panel">
+      <form id="sessionViewerForm" class="session-form" autocomplete="off">
+        <label class="session-field">
+          <span class="session-label">Email</span>
+          <input
+            type="email"
+            id="viewerEmail"
+            class="session-input"
+            placeholder="viewer@example.com"
+            required
+          />
+        </label>
+
+        <label class="session-field">
+          <span class="session-label">Password</span>
+          <input
+            type="password"
+            id="viewerPassword"
+            class="session-input"
+            placeholder="••••••••"
+            required
+          />
+        </label>
+
+        <div id="viewerError" class="session-error" role="alert"></div>
+
+        <div class="session-actions">
+          <button
+            id="viewerSignInBtn"
+            type="submit"
+            class="btn btn-primary wide-btn"
+          >
+            Sign in as Viewer
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="guest-login-row">
+        <button id="guestBtn" class="btn btn-primary wide-btn">
+          Continue as Guest (read-only)
+        </button>
       </div>
+    <div class="session-hint">
+      Access is logged. Operator mode can move, edit, and archive files.
     </div>
   </div>
-
-
-<script>
-  (async function maybeForwardToApp() {
-    try {
-      const r = await fetch('/api/session/me', { credentials: 'include' });
-      if (r.ok) {
-        // already signed in -> skip homepage
-        window.location.replace('index.html');
-      }
-    } catch (_) { /* ignore; stay on homepage */ }
-  })();
-</script>
-
+</div>
+<script src="home.js"></script>
 
 </body>
 </html>
