@@ -1,3 +1,54 @@
+function migrateLegacyPrefs() {
+  // If old keys exist, copy them to new keys once
+  const legacyStatus  = localStorage.getItem('pref_status_filter');
+  const legacyDeleted = localStorage.getItem('pref_show_deleted');
+  let migrated = false;
+
+  if (legacyStatus !== null && localStorage.getItem('table.filter.status') === null) {
+    localStorage.setItem('table.filter.status', legacyStatus);
+    migrated = true;
+  }
+  if (legacyDeleted !== null && localStorage.getItem('table.showDeleted.default') === null) {
+    localStorage.setItem('table.showDeleted.default', legacyDeleted);
+    migrated = true;
+  }
+
+  // Optionally clean legacy keys after migration
+  if (migrated) {
+    localStorage.removeItem('pref_status_filter');
+    localStorage.removeItem('pref_show_deleted');
+  }
+}
+
+function populateForms(s) {
+  migrateLegacyPrefs(); //  add this at the top
+  originalSettings = { ...s };
+
+  // server-backed fields
+  const emailEl = $('#admin_email');
+  const freqEl  = $('#reminder_freq_minutes');
+  if (emailEl) emailEl.value = s.admin_email ?? '';
+  if (freqEl)  freqEl.value  = Number(s.reminder_freq_minutes ?? 180);
+
+  // localStorage-backed fields
+  const defSel     = $('#table_rows_default');
+  const rememberCb = $('#table_rows_remember');
+  const statusSel  = $('#pref_status_filter');
+  const showDelSel = $('#pref_show_deleted');
+
+  const savedDefault   = localStorage.getItem('table.pageSize.default') || '50';
+  const savedRemember  = localStorage.getItem('table.pageSize.rememberLast') === 'true';
+  const savedStatus    = localStorage.getItem('table.filter.status') || '';
+  const savedShowDel   = localStorage.getItem('table.showDeleted.default') || 'false';
+
+  if (defSel)     defSel.value = savedDefault;
+  if (rememberCb) rememberCb.checked = savedRemember;
+  if (statusSel)  statusSel.value = savedStatus;
+  if (showDelSel) showDelSel.value = savedShowDel;
+}
+
+
+
 async function fetchUsers() {
   const res = await fetch('/users', { credentials: 'include' });
   if (!res.ok) {
@@ -158,29 +209,50 @@ function populateForms(s) {
 }
 
 // ----- Forms: General -----
-function wireGeneralForm() {
-  const form = $('#formGeneral');
-  const emailEl = $('#admin_email');
-  const saveBtn = $('#saveGeneralBtn');
-  const resetBtn = $('#resetGeneralBtn');
-  const msgEl = $('#generalMsg');
+function wireTableForm() {
+  const form = $('#formTable');
+  if (!form) return;
 
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault(); clearMsg(msgEl);
-    const email = (emailEl?.value || '').trim();
-    if (!isValidEmail(email)) return showMsg(msgEl, 'Please enter a valid email address.', 'error');
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
-    try {
-      const saved = await saveSettings({ admin_email: email });
-      originalSettings = saved;
-      showMsg(msgEl, 'Saved successfully.', 'success');
-    } catch (err) { showMsg(msgEl, err.message || 'Failed to save.', 'error'); }
-    finally { if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; } }
+  const defSel     = $('#table_rows_default');
+  const rememberCb = $('#table_rows_remember');
+  const statusSel  = $('#pref_status_filter');
+  const showDelSel = $('#pref_show_deleted');
+
+  const saveBtn  = $('#saveTableBtn');
+  const resetBtn = $('#resetTableBtn');
+  const msgEl    = $('#tableMsg');
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    clearMsg(msgEl);
+
+    const size      = defSel?.value || '50';
+    const remember  = !!rememberCb?.checked;
+    const statusVal = statusSel?.value || '';
+    const showDel   = showDelSel?.value || 'false'; // 'true'|'false'
+
+    localStorage.setItem('table.pageSize.default', size);
+    localStorage.setItem('table.pageSize.rememberLast', String(remember));
+    localStorage.setItem('table.filter.status', statusVal);
+    localStorage.setItem('table.showDeleted.default', showDel);
+
+    showMsg(msgEl, 'Table preferences saved.', 'success');
   });
 
   resetBtn?.addEventListener('click', () => {
     clearMsg(msgEl);
-    if (emailEl) { emailEl.value = originalSettings?.admin_email ?? ''; emailEl.focus(); }
+
+    localStorage.removeItem('table.pageSize.default');
+    localStorage.removeItem('table.pageSize.rememberLast');
+    localStorage.removeItem('table.filter.status');
+    localStorage.removeItem('table.showDeleted.default');
+
+    if (defSel)     defSel.value = '50';
+    if (rememberCb) rememberCb.checked = false;
+    if (statusSel)  statusSel.value = '';
+    if (showDelSel) showDelSel.value = 'false';
+
+    showMsg(msgEl, 'Table preferences reset to defaults (50 rows, all files, show deleted = No).', 'success');
   });
 }
 
