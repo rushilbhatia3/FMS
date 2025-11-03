@@ -1,105 +1,114 @@
-/* small inline tweaks specific to the home hero */
-    .home-wrap { 
-        min-height: 100vh; 
-        display:flex; 
-        align-items:center; 
-        justify-content:center; 
-        background:#f6f7f9; 
-    }
+/* Center the hero using your existing tokens from style.css */
+.home-wrap {
+  min-height: 80vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg-page);
+  padding: 2rem;
+}
 
+.home-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  padding: 4rem;
+  width: min(900px, 95vw);
+  box-shadow: var(--shadow-card);
+}
 
-    .home-card { 
-        background:#fff; 
-        border:1px solid #e6e6e6; 
-        border-radius:16px; 
-        padding:2rem; 
-        width:min(720px, 92vw); 
-        box-shadow:0 12px 28px rgba(0,0,0,.08); 
-    }
+.home-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
 
+.home-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
 
-    .home-head { 
-        display:flex; 
-        gap:1rem; 
-        align-items:center; 
-        margin-bottom:1rem; 
-        justify-content:space-between;
-    }
+.home-sub {
+  color: var(--text-dim);
+}
 
-    .home-title { 
-        font-size:1.4rem; 
-        font-weight:700; 
-        letter-spacing:.2px; 
-    }
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
 
-    .home-sub { 
-        color:#555; 
-        margin-bottom:1.5rem; 
-    }
+@media (max-width: 820px) {
+  .home-grid { grid-template-columns: 1fr; }
+}
 
-    .home-actions { 
-        display:grid; 
-        grid-template-columns: 1fr 1fr; 
-        gap:1rem; 
-        margin-top:1rem; 
-    }
+/* Card blocks inside the grid */
+.card {
+  border: 1px solid var(--border-softer);
+  border-radius: var(--radius-card);
+  padding: 1.5rem;
+  background: #fff;
+  padding-bottom: 50px;
+}
 
-    .home-actions .card { 
-        border:1px solid #eee; 
-        border-radius:12px; 
-        padding:1rem; 
-        background:#fafafa; 
-    }
+/* Form layout */
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+.field label {
+  font-weight: 600;
+  color: var(--text-main);
+}
+.field input[type="email"],
+.field input[type="password"] {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+}
+.field input:focus {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px #00000020;
+}
+.hint { 
+    color: #666; 
+    font-size: 0.85rem; 
+}
 
-    .home-actions .card h3 { 
-        margin:0 0 .5rem; 
-        font-size:1rem; 
-    }
+.password-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
 
-    .home-actions .card p {
-        margin:0 0 .75rem; 
-        color:#555; 
-        font-size:.9rem; 
-    }
+.actions { margin-top: 0.75rem; }
+.alt-actions { margin-top: 0.75rem; }
 
-    .btn-row { 
-        display:flex; 
-        gap:.5rem; 
-        flex-wrap:wrap; 
-    }
+.btn-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
 
-    .btn { 
-        display:inline-flex; 
-        align-items:center; 
-        justify-content:center; 
-        gap:.4rem; 
-        padding:.6rem .9rem; 
-        border-radius:8px; 
-        border:1px solid #ddd; 
-        background:#fff; 
-        cursor:pointer; 
-    }
+.wide-btn { width: 100%; }
 
-    .btn-primary { 
-        background:#182E6F; 
-        border-color:#182E6F; 
-        color:#fff; 
-    }
+/* Small utility for the “Show” button */
+.btn.small { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
 
-    .btn-ghost { 
-        background:#fff; 
-        border-color:#ccc; 
-        color:#333;
-     }
+/* Error text aligned with your global tone */
+.form-error {
+  margin-top: 0.5rem;
+  color: #9b2d30; /* muted crimson from your palette direction */
+  font-weight: 600;
+}
 
-    .made-by { 
-        margin-top:1.25rem;
-        font-size:.8rem; 
-        color:#777; 
-    }
-
-    @media (max-width: 720px) { 
-        .home-actions { 
-            grid-template-columns: 1fr;
-         } 
-        }
+/* Support section list */
+.support-hints {
+  margin: 0.75rem 0 0 1rem;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}

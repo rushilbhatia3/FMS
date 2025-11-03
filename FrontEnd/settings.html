@@ -4,121 +4,178 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FMS — Settings</title>
+  <!-- Global first, then page CSS -->
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="settings.css" />
+  <link rel="stylesheet" href="settings.css?v=4" />
 </head>
 <body>
-  <div class="page">
-    <div class="settings-shell">
-      <div class="settings-head">
-        <div class="settings-title">Settings</div>
-        <div class="btn-row">
-          <a class="btn" href="homepage.html">← Home</a>
-          <a class="btn" href="index.html">Open FMS</a>
+  <main class="settings-wrap">
+    <section class="settings-card" aria-labelledby="settingsTitle">
+      <header class="settings-head">
+        <div class="head-row">
+          <a class="btn btn-secondary btn-back" href="index.html">← Back to App</a>
+          <div class="head-titles">
+            <h1 id="settingsTitle">Settings</h1>
+            <p class="sub">Manage admin email, reminders, table defaults, and users.</p>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <!-- Server settings -->
-      <div class="card" id="serverCard">
-        <h3>Server Settings <span id="serverStatus" class="note"></span></h3>
-        <div class="form-row">
-          <label for="admin_email">Notification Email</label>
-          <input id="admin_email" type="email" placeholder="alerts@example.com" />
-        </div>
-        <div class="form-row">
-          <label for="reminder_freq_minutes">Reminder Frequency (minutes)</label>
-          <input id="reminder_freq_minutes" type="number" min="1" max="1440" />
-        </div>
-        <div class="btn-row">
-          <button id="serverSaveBtn" class="btn btn-primary">Save Server Settings</button>
-          <button id="serverReloadBtn" class="btn btn-quiet">Reload</button>
-        </div>
-        <div class="note" id="serverHint">admin access required to save.</div>
-      </div>
+      <div class="settings-grid">
+        <!-- Vertical Tabs -->
+        <nav class="tabs-vert" role="tablist" aria-label="Settings sections">
+          <button role="tab" id="tabbtn-general"   class="vtab active" data-tab="general">General</button>
+          <button role="tab" id="tabbtn-reminders" class="vtab"        data-tab="reminders">Reminders</button>
+          <button role="tab" id="tabbtn-table"     class="vtab"        data-tab="table">Table</button>
+          <button role="tab" id="tabbtn-users"     class="vtab"        data-tab="users">Users</button>
+        </nav>
 
-      <!-- Local preferences (stored in browser only) -->
-      <div class="card">
-        <h3>Local Preferences (this browser only)</h3>
+        <!-- General -->
+        <section id="tab-general" class="tab-panel tab-panel-active" role="tabpanel" aria-labelledby="tabbtn-general">
+          <form id="formGeneral" class="form">
+            <div class="field">
+              <label for="admin_email">Admin email</label>
+              <input id="admin_email" name="admin_email" type="email" placeholder="admin@yourcompany.com" required />
+              <small class="hint">Alerts and notifications will be sent here.</small>
+            </div>
 
-        <div class="form-row">
-          <label for="pref_page_size">Default Page Size</label>
-          <select id="pref_page_size">
-            <option>50</option>
-            <option selected>100</option>
-            <option>250</option>
-            <option>500</option>
-          </select>
-        </div>
+            <div class="actions">
+              <button type="submit" class="btn btn-primary" id="saveGeneralBtn">Save changes</button>
+              <button type="button" class="btn btn-ghost" id="resetGeneralBtn">Reset</button>
+            </div>
 
-        <div class="form-row">
-          <label for="pref_status_filter">Default Status Filter</label>
-          <select id="pref_status_filter">
-            <option value="">All files</option>
-            <option value="available">Available only</option>
-            <option value="out">Checked out only</option>
-          </select>
-        </div>
+            <p id="generalMsg" class="form-msg" hidden></p>
+          </form>
+        </section>
 
-        <div class="form-row">
-          <label for="pref_show_deleted">Show Deleted by Default</label>
-          <select id="pref_show_deleted">
-            <option value="false" selected>No</option>
-            <option value="true">Yes</option>
-          </select>
-        </div>
+        <!-- Reminders -->
+        <section id="tab-reminders" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-reminders" hidden>
+          <form id="formReminders" class="form">
+            <div class="field">
+              <label for="reminder_freq_minutes">Reminder frequency (minutes)</label>
+              <input id="reminder_freq_minutes" name="reminder_freq_minutes" type="number" min="1" max="1440" step="1" required />
+              <small class="hint">Allowed range: 1 to 1440 (once per day).</small>
+            </div>
 
-        <div class="btn-row">
-          <button id="prefsSaveBtn" class="btn btn-primary">Save Preferences</button>
-          <button id="prefsResetBtn" class="btn btn-quiet">Reset</button>
-        </div>
-        <div class="note">These settings are stored in <code>localStorage</code> and only affect this browser.</div>
-      </div>
+            <div class="actions">
+              <button type="submit" class="btn btn-primary" id="saveRemindersBtn">Save changes</button>
+              <button type="button" class="btn btn-ghost" id="resetRemindersBtn">Reset</button>
+            </div>
 
-      <div class="card" id="usersCard">
-  <h3>Users</h3>
-  <div class="note" style="margin-bottom:.5rem;">Admins can create users and assign roles.</div>
+            <p id="remindersMsg" class="form-msg" hidden></p>
+          </form>
+        </section>
 
-  <div class="form-row">
-    <label for="new_user_email">Email</label>
-    <input id="new_user_email" type="email" placeholder="user@example.com" />
-  </div>
-
-  <div class="form-row">
-    <label for="new_user_password">Password</label>
-    <input id="new_user_password" type="password" placeholder="Strong password" />
-  </div>
-
-  <div class="form-row">
-    <label for="new_user_role">Role</label>
-    <select id="new_user_role">
-      <option value="user" selected>User</option>
-      <option value="admin">Admin</option>
-    </select>
-  </div>
-
-  <div class="btn-row">
-    <button id="createUserBtn" class="btn btn-primary">Create User</button>
-    <button id="reloadUsersBtn" class="btn btn-quiet">Reload</button>
-  </div>
-
-  <div class="note" id="usersHint" style="margin-top:.5rem;">admin/Admin access required.</div>
-
-  <div style="margin-top:1rem;">
-    <table id="usersTable" style="width:100%; border-collapse:collapse;">
-      <thead>
-        <tr>
-          <th style="text-align:left; border-bottom:1px solid #eee; padding:.5rem;">Email</th>
-          <th style="text-align:left; border-bottom:1px solid #eee; padding:.5rem;">Role</th>
-          <th style="text-align:left; border-bottom:1px solid #eee; padding:.5rem;">Created</th>
-        </tr>
-      </thead>
-      <tbody id="usersTbody"></tbody>
-    </table>
-  </div>
-</div>
-
+        <!-- Table -->
+        <section id="tab-table" class="tab-panel" role="tabpanel" hidden>
+  <form id="formTable" class="form">
+    <!-- Page size -->
+    <div class="field">
+      <label for="table_rows_default">Default rows per page</label>
+      <select id="table_rows_default">
+        <option>25</option><option>50</option><option>100</option><option>200</option>
+      </select>
     </div>
-  </div>
+
+    <div class="field">
+      <label>
+        <input id="table_rows_remember" type="checkbox" />
+        Remember last used page size
+      </label>
+    </div>
+
+    <!-- Your migrated prefs -->
+    <div class="field">
+      <label for="pref_status_filter">Default status filter</label>
+      <select id="pref_status_filter">
+        <option value="">All files</option>
+        <option value="available">Available only</option>
+        <option value="out">Checked out only</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="pref_show_deleted">Show deleted by default</label>
+      <select id="pref_show_deleted">
+        <option value="false">No</option>
+        <option value="true">Yes</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button id="saveTableBtn" class="btn btn-primary" type="submit">Save</button>
+      <button id="resetTableBtn" class="btn btn-ghost" type="button">Reset</button>
+    </div>
+
+    <p id="tableMsg" class="form-msg" hidden></p>
+  </form>
+</section>
+
+        <!-- Users -->
+        <section id="tab-users" class="tab-panel" role="tabpanel" hidden>
+          <form id="formUsers" class="form">
+            <div class="note" style="margin-bottom:.5rem;">Admins can create users and assign roles.</div>
+            <div class="field">
+              <label for="user_email">User email</label>
+              <input id="user_email" name="user_email" type="email" placeholder="new.user@company.com" required />
+            </div>
+
+            <div class="field">
+              <label for="user_role">Role</label>
+              <select id="user_role" name="user_role" required>
+                <option value="user">User (read-only)</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+
+              <div class="field">
+                <label for="user_password">Password</label>
+                <div class="password-row">
+                  <input id="user_password" name="user_password" type="password" placeholder="Strong password" required />
+                  <button type="button" id="toggleUserPw" class="btn btn-ghost small" aria-pressed="false" aria-controls="user_password">
+                    Show
+                  </button>
+                </div>
+                <small class="hint">Use at least 8 characters.</small>
+              </div>
+
+
+            <div class="actions">
+              <button type="submit" class="btn btn-primary" id="addUserBtn">Add user</button>
+              <button type="button" class="btn btn-ghost" id="resetUserBtn">Clear</button>
+            </div>
+
+            <p id="usersMsg" class="form-msg" hidden></p>
+
+            <div class="users-list-wrap">
+            <div class="users-list-head">
+              <h3 class="users-title">Current users</h3>
+              <button type="button" id="refreshUsersBtn" class="btn btn-secondary btn-compact">Refresh</button>
+            </div>
+
+            <table class="users-table" id="usersTable" aria-describedby="usersHelp">
+              <thead>
+                <tr>
+                  <th scope="col">Email</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">Created</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody">
+                <tr class="empty"><td colspan="3">No users yet.</td></tr>
+              </tbody>
+            </table>
+            <p id="usersHelp" class="import-hint">Admins/operators can add users above.</p>
+          </div>
+          </form>
+
+          <!-- (Optional) later: list current users -->
+          <!-- <div id="usersList" class="users-list"></div> -->
+        </section>
+      </div>
+    </section>
+  </main>
 
   <script src="settings.js" defer></script>
 </body>

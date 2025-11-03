@@ -11,6 +11,15 @@
   }
 })();
 
+let APP_SETTINGS = null;
+
+async function loadAppSettings() {
+  try {
+    const r = await fetch('/api/settings', { credentials: 'include' });
+    if (!r.ok) return; // silently ignore if not admin
+    APP_SETTINGS = await r.json();
+  } catch {}
+}
 
 //auth before everything 
 let currentUser = null;
@@ -53,14 +62,14 @@ if (nextPageBtn) {
 }
 
 const sessionModalEl       = document.getElementById('sessionModal');
-const sessionTabOperator   = document.getElementById('sessionTabOperator');
+const sessionTabadmin   = document.getElementById('sessionTabadmin');
 const sessionTabViewer     = document.getElementById('sessionTabViewer');
-const sessionPanelOperator = document.getElementById('sessionPanelOperator');
+const sessionPaneladmin = document.getElementById('sessionPaneladmin');
 const sessionPanelViewer   = document.getElementById('sessionPanelViewer');
 
 const opEmailEl    = document.getElementById('opEmail');
 const opPasswordEl = document.getElementById('opPassword');
-const opFormEl     = document.getElementById('sessionOperatorForm');
+const opFormEl     = document.getElementById('sessionadminForm');
 const opErrorEl    = document.getElementById('opError');
 
 const viewerEmailEl    = document.getElementById('viewerEmail');
@@ -76,22 +85,22 @@ let currentPage = 1;
 let PAGE_SIZE = 100;
 
 // tab switching
-function activateOperatorTab() {
-  sessionTabOperator.classList.add('session-tab-active');
+function activateadminTab() {
+  sessionTabadmin.classList.add('session-tab-active');
   sessionTabViewer.classList.remove('session-tab-active');
 
-  sessionPanelOperator.classList.add('session-panel-active');
+  sessionPaneladmin.classList.add('session-panel-active');
   sessionPanelViewer.classList.remove('session-panel-active');
 }
 function activateViewerTab() {
   sessionTabViewer.classList.add('session-tab-active');
-  sessionTabOperator.classList.remove('session-tab-active');
+  sessionTabadmin.classList.remove('session-tab-active');
 
   sessionPanelViewer.classList.add('session-panel-active');
-  sessionPanelOperator.classList.remove('session-panel-active');
+  sessionPaneladmin.classList.remove('session-panel-active');
 }
 
-sessionTabOperator.addEventListener('click', activateOperatorTab);
+sessionTabadmin.addEventListener('click', activateadminTab);
 sessionTabViewer.addEventListener('click', activateViewerTab);
 
 //settings button
@@ -115,7 +124,7 @@ function updateHeaderUserInfo() {
   sessionUserInfoEl.textContent = `${currentUser.email} (${currentUser.role})`;
   if (logoutBtn) logoutBtn.style.display = "";
 }
-// login submit (operator)
+// login submit (admin)
 opFormEl.addEventListener('submit', async (e) => {
   e.preventDefault();
   opErrorEl.textContent = "";
@@ -183,20 +192,18 @@ viewerFormEl.addEventListener('submit', async (e) => {
 
 // logout
 if (logoutBtn) {
-  logoutBtn.addEventListener('click', async () => {
+  logoutBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
     try {
       await fetch('/api/session/logout', {
         method: 'POST',
         credentials: 'include'
       });
-    } catch (err) {
-      // ignore network fail
+    } catch (_) {
+      // ignore
     }
-    currentUser = null;
-    applyRoleUI();
-    updateHeaderUserInfo();
-    showSessionModal();
-    await loadFiles();
+    // Redirect to the public landing/sign-in
+    window.location.replace('homepage.html#signin');
   });
 }
 
@@ -232,13 +239,13 @@ async function fetchSession() {
 // this controls what a viewer can/can't do in the UI
 function applyRoleUI() {
   const role = currentUser?.role || "guest";
-  const isOperator = role === "operator";
-  const isViewer = role === "viewer";
+  const isadmin = role === "admin";
+  const isViewer = role === "User";
   const isGuest = role === "guest";
 
   // --- Add File button / Import tab ---
   if (openAddFileBtn) {
-    if (isOperator) {
+    if (isadmin) {
       openAddFileBtn.disabled = false;
       openAddFileBtn.style.opacity = "";
       openAddFileBtn.style.pointerEvents = "";
@@ -251,14 +258,14 @@ function applyRoleUI() {
   }
 
   // If you have "Import" tab / CSV upload stuff in that same modal,
-  // you can hide the tab for non-operators:
+  // you can hide the tab for non-admins:
   if (tabImportBtn) {
-    tabImportBtn.style.display = isOperator ? "" : "none";
+    tabImportBtn.style.display = isadmin ? "" : "none";
   }
 
   // --- Show Deleted checkbox ---
   if (showDeletedEl) {
-    if (isOperator) {
+    if (isadmin) {
       showDeletedEl.disabled = false;
       showDeletedEl.style.opacity = "";
       showDeletedEl.style.pointerEvents = "";
@@ -274,7 +281,7 @@ function applyRoleUI() {
   // Behavior you asked for:
   // - guest: no export at all (hide button)
   // - viewer: can open export but ONLY "files" option should be selectable
-  // - operator: full export menu
+  // - admin: full export menu
 
   if (exportOpenBtn) {
     if (isGuest) {
@@ -304,7 +311,7 @@ function applyRoleUI() {
     sessionUserInfoEl.textContent = "Guest (read-only)";
   }
 
-  if (settingsLink) settingsLink.style.display = isOperator ? "" : "none";
+  if (settingsLink) settingsLink.style.display = isadmin ? "" : "none";
 }
 
 
@@ -417,6 +424,10 @@ const statusFilterEl = document.getElementById('statusFilter');
         loadFiles();
       });
 }
+
+// Apply defaults on boot (only if elements exist)
+if (statusFilterEl) statusFilterEl.value = readDefaultStatusFilter();     // '', 'available', 'out'
+if (showDeletedEl)  showDeletedEl.checked = readDefaultShowDeleted(); 
 
 
 //time management
@@ -543,7 +554,7 @@ form.addEventListener('submit', async (e) => {
     system_number: document.getElementById('system_number').value.trim(),
     shelf: document.getElementById('shelf').value.trim(),
     clearance_level: parseInt(document.getElementById('clearance_level').value),
-    added_by: document.getElementById('added_by').value.trim() || "operator"
+    added_by: document.getElementById('added_by').value.trim() || "admin"
   };
 
   try {
@@ -616,7 +627,7 @@ async function loadFiles() {
   const statusVal = statusFilterEl ? statusFilterEl.value : "";
 
   const role = currentUser?.role || "guest";
-  const isOperator = role === "operator";
+  const isadmin = role === "admin";
 
   const query = new URLSearchParams({
     include_deleted: includeDeleted ? "true" : "false",
@@ -713,9 +724,9 @@ async function loadFiles() {
         `;
       }
     }
-    // operator-only actions
+    // admin-only actions
     const checkoutButtons = (() => {
-      if (!isOperator) {
+      if (!isadmin) {
         return "—";
       }
       if (isDeleted) {
@@ -729,7 +740,7 @@ async function loadFiles() {
     })();
 
     const lifecycleButtons = (() => {
-      if (!isOperator) {
+      if (!isadmin) {
         return "—";
       }
       if (isDeleted) {
@@ -740,7 +751,7 @@ async function loadFiles() {
     })();
 
     const editButtonHTML = (() => {
-      if (!isOperator) {
+      if (!isadmin) {
         return "—";
       }
       return `
@@ -1001,7 +1012,7 @@ async function openFileDetails(fileId) {
       const checkoutTime = formatTimestamp(h.checkout_at);
       const returnTime   = formatTimestamp(h.return_at);
       const who          = h.holder_name || "—";
-      const op           = h.operator_name || "";
+      const op           = h.admin_name || "";
       const noteText     = h.note
         ? `<div class="history-note">Note: ${h.note}</div>`
         : "";
@@ -1221,14 +1232,14 @@ if (csvImportBtn) {
 //export logic 
 function openExportModal() {
   const role = currentUser?.role || "guest";
-  const isOperator = role === "operator";
+  const isadmin = role === "admin";
 
   // find the radio inputs
   const radioFiles      = document.querySelector('input[value="files"][name="exportType"]');
   const radioCheckouts  = document.querySelector('input[value="checkouts"][name="exportType"]');
   const radioAll        = document.querySelector('input[value="all"][name="exportType"]');
 
-  if (!isOperator) {
+  if (!isadmin) {
     // viewer (or guest if they somehow got here):
     // - they can only download "files"
     if (radioFiles) {
@@ -1244,7 +1255,7 @@ function openExportModal() {
       radioAll.checked = false;
     }
   } else {
-    // operator: enable all
+    // admin: enable all
     if (radioFiles)     radioFiles.disabled = false;
     if (radioCheckouts) radioCheckouts.disabled = false;
     if (radioAll)       radioAll.disabled = false;
@@ -1382,6 +1393,13 @@ document.querySelectorAll('th.sortable').forEach(th => {
     }
   } catch (_) {}
 })();
+
+function readDefaultStatusFilter() {
+  return localStorage.getItem('table.filter.status') || ''; // '', 'available', 'out'
+}
+function readDefaultShowDeleted() {
+  return localStorage.getItem('table.showDeleted.default') === 'true';
+}
 
 
 //IIFE

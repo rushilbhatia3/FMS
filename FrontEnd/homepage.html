@@ -4,144 +4,70 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FMS — Home</title>
+
+  <!-- Page-specific first to allow global overrides if needed -->
   <link rel="stylesheet" href="home.css" />
+  <!-- global tokens/components -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="home-wrap">
-    <div class="home-card">
-      <div class="home-head" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;">
-  <div class="home-title">FMS — File Management System</div>
-  
-    </div>
-    <div class="home-sub">
-    Welcome. Choose what you’d like to do. You can browse as a guest, sign in to manage files, or adjust system settings.
-    </div>
+  <main class="home-wrap">
+    <section class="home-card" role="region" aria-labelledby="homeTitle">
+      <header class="home-head">
+        <h1 id="homeTitle" class="home-title">File Management System - FMS</h1>
+      </header>
 
-      <div class="home-actions">
+      <div class="home-grid">
+        <!-- Sign in -->
         <div class="card">
-            <h3>Welcome</h3>
-            <p>Sign in to manage files, or reach us for help.</p>
-            <div class="btn-row">
-            <a class="btn btn-primary" href="index.html#signin">Log in</a>
-            <a class="btn btn-ghost" href="index.html#guest">Browse as Guest</a>
-            <a class="btn" href="mailto:homeofcreativechaos@gmail.com">Contact support</a>
+          <h3>Sign in</h3>
+          <form id="loginForm" novalidate>
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" autocomplete="username" required
+                     placeholder="you@example.com" />
+              <small class="hint">Use your registered FMS email.</small>
             </div>
+
+            <div class="field">
+              <label for="password">Password</label>
+              <div class="password-row">
+                <input id="password" name="password" type="password" autocomplete="current-password" required
+                       placeholder="••••••••" />
+                <button type="button" id="togglePw" class="btn btn-ghost small" aria-pressed="false" aria-controls="password">
+                  Show
+                </button>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button type="submit" class="btn btn-primary wide-btn" id="homeLoginBtn">Sign in</button>
+            </div>
+
+            <p id="loginError" class="form-error" role="alert" aria-live="assertive" hidden></p>
+          </form>
+
+          <div class="alt-actions">
+            <a class="btn" href="index.html#guest">Continue as Guest (read-only)</a>
+          </div>
+        </div>
+
+        <!-- Support -->
+        <div class="card">
+          <h3>Support</h3>
+          <p>Can’t sign in or need assistance?</p>
+          <div class="btn-row">
+            <a class="btn btn-ghost" href="mailto:homeofcreativechaos@gmail.com">Contact support</a>
+          </div>
+          <ul class="support-hints">
+            <li>Make sure cookies are enabled for this site.</li>
+            <li>If you forgot your password, ask your admin to reset it.</li>
+          </ul>
         </div>
       </div>
-  </div>
-</div>
+    </section>
+  </main>
 
-
-<!-- login / logout modal -->
- <div id="sessionModal" class="session-modal">
-  <div class="session-card">
-    <div class="session-card-header">
-      <h2 class="session-card-title">File Access</h2>
-      <p class="session-card-desc">Choose your role and sign in.</p>
-    </div>
-
-    <!-- Role tabs -->
-    <div class="session-tabs">
-      <button id="sessionTabOperator" class="session-tab session-tab-active" type="button">
-        Operator
-      </button>
-      <button id="sessionTabViewer" class="session-tab" type="button">
-        Viewer
-      </button>
-      
-    </div>
-
-    <!-- Operator panel -->
-    <div id="sessionPanelOperator" class="session-panel session-panel-active">
-      <form id="sessionOperatorForm" class="session-form" autocomplete="off">
-        <label class="session-field">
-          <span class="session-label">Email</span>
-          <input
-            type="email"
-            id="opEmail"
-            class="session-input"
-            placeholder="operator@example.com"
-            required
-          />
-        </label>
-
-        <label class="session-field">
-          <span class="session-label">Password</span>
-          <input
-            type="password"
-            id="opPassword"
-            class="session-input"
-            placeholder="••••••••"
-            required
-          />
-        </label>
-
-        <div id="opError" class="session-error" role="alert"></div>
-
-        <div class="session-actions">
-          <button
-            id="opSignInBtn"
-            type="submit"
-            class="btn btn-primary wide-btn"
-          >
-            Sign in as Operator
-          </button>
-        </div>
-        
-      </form>
-    </div>
-
-    <!-- Viewer panel -->
-    <div id="sessionPanelViewer" class="session-panel">
-      <form id="sessionViewerForm" class="session-form" autocomplete="off">
-        <label class="session-field">
-          <span class="session-label">Email</span>
-          <input
-            type="email"
-            id="viewerEmail"
-            class="session-input"
-            placeholder="viewer@example.com"
-            required
-          />
-        </label>
-
-        <label class="session-field">
-          <span class="session-label">Password</span>
-          <input
-            type="password"
-            id="viewerPassword"
-            class="session-input"
-            placeholder="••••••••"
-            required
-          />
-        </label>
-
-        <div id="viewerError" class="session-error" role="alert"></div>
-
-        <div class="session-actions">
-          <button
-            id="viewerSignInBtn"
-            type="submit"
-            class="btn btn-primary wide-btn"
-          >
-            Sign in as Viewer
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <div class="guest-login-row">
-        <button id="guestBtn" class="btn btn-primary wide-btn">
-          Continue as Guest (read-only)
-        </button>
-      </div>
-    <div class="session-hint">
-      Access is logged. Operator mode can move, edit, and archive files.
-    </div>
-  </div>
-</div>
-<script src="home.js"></script>
-
+  <script src="home.js" defer></script>
 </body>
 </html>
