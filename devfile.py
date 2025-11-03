@@ -61,8 +61,127 @@ def executor(executee):
     with db._connect() as cursor: 
         cursor.executescript(executee)
     
-#executor(execute)
 
+exec1="""
+PRAGMA foreign_keys = ON;
+
+-- 1) Core tables
+CREATE TABLE IF NOT EXISTS locations (
+  id             INTEGER PRIMARY KEY,
+  system_number  TEXT,
+  shelf          TEXT,
+  aisle          TEXT,
+  rack           TEXT,
+  bin            TEXT,
+  UNIQUE(system_number, shelf)
+);
+
+CREATE TABLE IF NOT EXISTS items (
+  id               INTEGER PRIMARY KEY,
+  sku              TEXT UNIQUE,
+  name             TEXT NOT NULL,
+  category         TEXT,
+  unit             TEXT DEFAULT 'units',
+  quantity         INTEGER NOT NULL DEFAULT 0,
+  height_mm        REAL,
+  width_mm         REAL,
+  depth_mm         REAL,
+  location_id      INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+  tag              TEXT,
+  note             TEXT,
+  clearance_level  INTEGER,
+  added_by         TEXT,
+  created_at       TEXT DEFAULT (datetime('now')),
+  updated_at       TEXT DEFAULT (datetime('now')),
+  is_deleted       INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS movements (
+  id               INTEGER PRIMARY KEY,
+  item_id          INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  movement_type    TEXT NOT NULL CHECK (movement_type IN ('in','out','adjust','transfer')),
+  quantity         INTEGER NOT NULL,
+  operator_name    TEXT,
+  from_location_id INTEGER REFERENCES locations(id),
+  to_location_id   INTEGER REFERENCES locations(id),
+  timestamp        TEXT NOT NULL DEFAULT (datetime('now')),
+  note             TEXT
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id               INTEGER PRIMARY KEY,
+  supplier_name    TEXT,
+  status           TEXT NOT NULL CHECK(status IN ('draft','placed','partial','received','cancelled')) DEFAULT 'draft',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  expected_arrival TEXT
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id                INTEGER PRIMARY KEY,
+  order_id          INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  item_id           INTEGER NOT NULL REFERENCES items(id)  ON DELETE CASCADE,
+  quantity_ordered  INTEGER NOT NULL,
+  quantity_received INTEGER NOT NULL DEFAULT 0
+);
+
+-- 2) Seed locations from existing files (safe if rerun)
+INSERT OR IGNORE INTO locations(system_number, shelf)
+SELECT DISTINCT system_number, shelf
+FROM files
+WHERE system_number IS NOT NULL AND shelf IS NOT NULL;
+
+-- 3) Seed items 1:1 from files, keeping IDs aligned (only if not present)
+INSERT INTO items(
+  id, name, tag, note, clearance_level, added_by,
+  created_at, updated_at, is_deleted, location_id
+)
+SELECT
+  f.id, f.name, f.tag, f.note, f.clearance_level, f.added_by,
+  f.created_at, COALESCE(f.updated_at, f.created_at), f.is_deleted,
+  (SELECT l.id FROM locations l
+     WHERE l.system_number = f.system_number AND l.shelf = f.shelf
+     LIMIT 1)
+FROM files f
+WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.id = f.id);
+
+-- 4) Compatibility view for old code paths
+DROP VIEW IF EXISTS files_v;
+CREATE VIEW files_v AS
+SELECT
+  i.id,
+  i.name,
+  NULL AS size_label,
+  NULL AS type_label,
+  i.tag,
+  i.note,
+  l.system_number,
+  l.shelf,
+  i.clearance_level,
+  i.added_by,
+  i.created_at,
+  i.updated_at,
+  i.is_deleted
+FROM items i
+LEFT JOIN locations l ON l.id = i.location_id;
+
+-- 5) Quantity bookkeeping on movements
+CREATE TRIGGER IF NOT EXISTS trg_movements_ai
+AFTER INSERT ON movements
+BEGIN
+  UPDATE items
+     SET quantity = quantity + NEW.quantity,
+         updated_at = datetime('now')
+   WHERE id = NEW.item_id;
+END;
+
+-- 6) Helpful indexes (optional but recommended)
+CREATE INDEX IF NOT EXISTS idx_items_location   ON items(location_id);
+CREATE INDEX IF NOT EXISTS idx_movements_item   ON movements(item_id);
+CREATE INDEX IF NOT EXISTS idx_locations_combo  ON locations(system_number, shelf);
+CREATE INDEX IF NOT EXISTS idx_orders_status    ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orderitems_order ON order_items(order_id);
+
+"""
 
 def reset_users():
     print(" Resetting all users...")
@@ -101,4 +220,5 @@ def reset_users():
             )
         print(f"✅  Inserted {len(seed_users)} users.")
 
-reset_users()
+#reset_users()
+executor(exec1)
