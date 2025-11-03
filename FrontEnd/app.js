@@ -545,34 +545,44 @@ async function updateFooterStats() {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
 
+  // NEW payload for items
   const payload = {
     name: document.getElementById('name').value.trim(),
-    size_label: document.getElementById('size_label').value.trim(),
-    type_label: document.getElementById('type_label').value.trim(),
     tag: document.getElementById('tag').value.trim(),
     note: document.getElementById('note').value.trim(),
-    system_number: document.getElementById('system_number').value.trim(),
-    shelf: document.getElementById('shelf').value.trim(),
-    clearance_level: parseInt(document.getElementById('clearance_level').value),
-    added_by: document.getElementById('added_by').value.trim() || "admin"
+    clearance_level: parseInt(document.getElementById('clearance_level').value, 10) || 1,
+
+    height_mm: parseFloat(document.getElementById('height_mm').value) || null,
+    width_mm:  parseFloat(document.getElementById('width_mm').value)  || null,
+    depth_mm:  parseFloat(document.getElementById('depth_mm').value)  || null,
+
+    location: {
+      system_number: (document.getElementById('loc_system').value || '').trim(),
+      shelf:         (document.getElementById('loc_shelf').value || '').trim()
+    }
   };
 
   try {
-    const res = await fetch('/api/add_file', {
+    const res = await fetch('/api/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 
-    if (res.ok) {
-      alert('File added successfully!');
-      form.reset();
-      closeAddFileModal();
-      loadFiles();
-    } else {
+    if (!res.ok) {
       const msg = await res.text();
       alert('Error: ' + msg);
+      return;
     }
+
+    alert('Item added.');
+    form.reset();
+    closeAddFileModal();
+    // For now your list may still be /api/files; that’s fine.
+    // When you flip, call a new loadItems() or point loadFiles() to /api/items.
+    await loadFiles();
+
   } catch (err) {
     alert('Network error: ' + err.message);
   }

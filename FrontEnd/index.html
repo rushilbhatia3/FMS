@@ -351,34 +351,36 @@
           />
         </label>
 
-        <!-- Location -->
+        <!-- Dimensions (mm) -->
         <fieldset class="fieldset-block">
-          <legend class="fieldset-legend">Location</legend>
-
+          <legend class="fieldset-legend">Dimensions (mm)</legend>
           <label class="form-field">
-            <span class="form-label">System number</span>
-            <input
-              type="text"
-              id="system_number"
-              name="system_number"
-              class="form-input"
-              placeholder="e.g., S01"
-              required
-            />
+            <span class="form-label">Height</span>
+            <input type="number" id="height_mm" class="form-input" min="0" step="0.01" />
           </label>
-
           <label class="form-field">
-            <span class="form-label">Shelf</span>
-            <input
-              type="text"
-              id="shelf"
-              name="shelf"
-              class="form-input"
-              placeholder="e.g., A3"
-              required
-            />
+            <span class="form-label">Width</span>
+            <input type="number" id="width_mm" class="form-input" min="0" step="0.01" />
+          </label>
+          <label class="form-field">
+            <span class="form-label">Depth</span>
+            <input type="number" id="depth_mm" class="form-input" min="0" step="0.01" />
           </label>
         </fieldset>
+
+        <!-- Normalized location -->
+        <fieldset class="fieldset-block">
+          <legend class="fieldset-legend">Location (normalized)</legend>
+          <label class="form-field">
+            <span class="form-label">System</span>
+            <input type="text" id="loc_system" class="form-input" placeholder="S01" />
+          </label>
+          <label class="form-field">
+            <span class="form-label">Shelf</span>
+            <input type="text" id="loc_shelf" class="form-input" placeholder="A3" />
+          </label>
+        </fieldset>
+
 
         <!-- Clearance -->
         <label class="form-field">

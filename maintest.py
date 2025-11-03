@@ -9,6 +9,7 @@ from maintenance import router as maintenance_router
 from auth import router as auth_router
 from db import db_read, db_write
 from settings import router as settings_router
+from items import router as items_router
 
 from auth import (
     get_current_user,
@@ -497,7 +498,6 @@ def list_files(
     }
     
     
-
 @app.delete("/api/files/{file_id}")
 def soft_delete_file(
     file_id: int,
@@ -1270,6 +1270,7 @@ def root():
     return RedirectResponse(url="app/homepage.html")
 
 
+app.include_router(items_router)
 app.include_router(maintenance_router)
 app.include_router(auth_router)
 app.include_router(settings_router)
