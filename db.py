@@ -85,15 +85,12 @@ def upsert_location(system_number: Optional[str], shelf: Optional[str]) -> Optio
       INSERT OR IGNORE INTO locations(system_number, shelf)
       VALUES(?, ?)
     """, (system_number, shelf))
-    # If new row inserted, lastrowid is set; otherwise fetch existing id.
-    if cur.lastrowid:
-        loc_id = cur.lastrowid
-    else:
-        cur.execute("""
-          SELECT id FROM locations WHERE system_number IS ? AND shelf IS ? LIMIT 1
-        """, (system_number, shelf))
-        r = cur.fetchone()
-        loc_id = r[0] if r else None
+    # IMPORTANT: use =, not IS
+    cur.execute("""
+      SELECT id FROM locations WHERE system_number = ? AND shelf = ? LIMIT 1
+    """, (system_number, shelf))
+    r = cur.fetchone()
+    loc_id = r[0] if r else None
     c.commit()
     c.close()
     return loc_id
@@ -126,41 +123,83 @@ def insert_item(
     c.commit(); c.close()
     return item_id
 
-def get_item(item_id: int) -> Optional[Dict[str, Any]]:
-    c = conn(); c.row_factory = row_to_dict  # type: ignore
-    cur = c.cursor()
-    cur.execute("""
-      SELECT i.*,
-             l.system_number, l.shelf, l.aisle, l.rack, l.bin
-      FROM items i
-      LEFT JOIN locations l ON l.id = i.location_id
-      WHERE i.id = ?
-    """, (item_id,))
-    row = cur.fetchone()
-    c.close()
-    return row
+def get_item(item_id: int) -> Dict[str, Any] | None:
+    with _connect() as c:
+        cur = c.cursor()
+        cur.execute("""
+          WITH last_move AS (
+            SELECT m.item_id, m.movement_type, m.operator_name, m.timestamp AS last_movement_ts
+            FROM movements m
+            JOIN (
+              SELECT item_id, MAX(timestamp) AS ts FROM movements GROUP BY item_id
+            ) t ON t.item_id = m.item_id AND t.ts = m.timestamp
+          )
+          SELECT i.*, l.system_number, l.shelf,
+                 lm.movement_type, lm.operator_name AS currently_held_by, lm.last_movement_ts
+          FROM items i
+          LEFT JOIN locations l ON l.id = i.location_id
+          LEFT JOIN last_move lm ON lm.item_id = i.id
+          WHERE i.id = ?
+          LIMIT 1
+        """, (item_id,))
+        r = cur.fetchone()
+        return dict(r) if r else None
 
-def list_items(q: str = "", page: int = 1, page_size: int = 100, include_deleted: bool = False) -> Dict[str, Any]:
-    c = conn(); c.row_factory = row_to_dict  # type: ignore
+        
+def insert_movement(*, item_id:int, movement_type:str, quantity:int, operator_name:str|None=None, note:str|None=None):
+    mt = movement_type.lower().strip()
+    if mt not in ("in","out"): raise ValueError("movement_type must be 'in' or 'out'")
+    qty = int(quantity) 
+    if qty <= 0: raise ValueError("quantity must be > 0")
+
+    with _connect() as c:
+        cur = c.cursor()
+
+        cur.execute("SELECT is_deleted, quantity FROM items WHERE id=?",(item_id,))
+        row = cur.fetchone()
+        if not row: raise ValueError("item does not exist")
+        if int(row["is_deleted"]) == 1: raise ValueError("cannot move an archived item")
+
+        delta = qty if mt == "in" else -qty
+        if int(row["quantity"] or 0) + delta < 0:
+            raise ValueError(f"insufficient stock: current={row['quantity']}, requested out={qty}")
+
+        # store signed amount; trigger will add NEW.quantity
+        cur.execute("""
+            INSERT INTO movements(item_id, movement_type, quantity, operator_name, note)
+            VALUES (?,?,?,?,?)
+        """, (item_id, mt, delta, operator_name, note))
+
+        # NO manual UPDATE here when using the trigger
+        # updated_at courtesy update:
+        cur.execute("UPDATE items SET updated_at = datetime('now') WHERE id = ?", (item_id,))
+     
+
+def list_items(q: str = "", page: int = 1, page_size: int = 100,
+               include_deleted: bool = False, sort: str = "created_at", dir: str = "desc") -> Dict[str, Any]:
+    c = _connect(); c.row_factory = sqlite3.Row
     cur = c.cursor()
 
-    where = []
-    args: List[Any] = []
+    where, args = [], []
     if q:
         where.append("(i.name LIKE ? OR i.tag LIKE ? OR i.note LIKE ? OR i.sku LIKE ?)")
         args += [f"%{q}%", f"%{q}%", f"%{q}%", f"%{q}%"]
     if not include_deleted:
         where.append("i.is_deleted = 0")
-
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
 
-    # total
-    cur.execute(f"SELECT COUNT(*) AS n FROM items i {where_sql}", args)
+    # sanitize sort
+    allowed = {
+        "name": "i.name", "created_at": "i.created_at", "updated_at": "i.updated_at",
+        "quantity": "i.quantity", "system_number": "l.system_number", "shelf": "l.shelf"
+    }
+    order_col = allowed.get(sort, "i.created_at")
+    order_dir = "ASC" if str(dir).lower() == "asc" else "DESC"
+
+    cur.execute(f"SELECT COUNT(*) AS n FROM items i LEFT JOIN locations l ON l.id=i.location_id {where_sql}", args)
     total = cur.fetchone()["n"]
 
-    # page clamp
-    page = max(1, int(page))
-    page_size = max(1, min(500, int(page_size)))
+    page = max(1, int(page)); page_size = max(1, min(500, int(page_size)))
     offset = (page - 1) * page_size
 
     cur.execute(f"""
@@ -171,9 +210,171 @@ def list_items(q: str = "", page: int = 1, page_size: int = 100, include_deleted
       FROM items i
       LEFT JOIN locations l ON l.id = i.location_id
       {where_sql}
-      ORDER BY i.created_at DESC
+      ORDER BY {order_col} {order_dir}
       LIMIT ? OFFSET ?
     """, (*args, page_size, offset))
-    items = cur.fetchall()
+    rows = cur.fetchall(); c.close()
+    return {"items": [dict(r) for r in rows], "page": page, "page_size": page_size, "total": total}
+
+
+def items_stats(include_deleted: bool = True) -> dict:
+    c = _connect()
+    cur = c.cursor()
+    if include_deleted:
+        cur.execute("SELECT COUNT(*) FROM items")
+        total = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM items WHERE is_deleted = 0")
+        active = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM items WHERE is_deleted = 1")
+        archived = cur.fetchone()[0]
+    else:
+        cur.execute("SELECT COUNT(*) FROM items WHERE is_deleted = 0")
+        active = cur.fetchone()[0]
+        total = active
+        archived = None
     c.close()
-    return {"items": items, "page": page, "page_size": page_size, "total": total}
+    return {"active_count": active, "archived_count": archived, "total_count": total}
+
+
+def update_item(item_id:int,
+                name:Optional[str]=None,
+                tag:Optional[str]=None,
+                note:Optional[str]=None,
+                clearance_level:Optional[int]=None,
+                height_mm:Optional[float]=None,
+                width_mm:Optional[float]=None,
+                depth_mm:Optional[float]=None,
+                location_id:Optional[int]=None):
+    c = _connect()
+    cur = c.cursor()
+    sets, args = [], []
+    if name is not None:             sets.append("name = ?");             args.append(name)
+    if tag is not None:              sets.append("tag = ?");              args.append(tag)
+    if note is not None:             sets.append("note = ?");             args.append(note)
+    if clearance_level is not None:  sets.append("clearance_level = ?");  args.append(clearance_level)
+    if height_mm is not None:        sets.append("height_mm = ?");        args.append(height_mm)
+    if width_mm is not None:         sets.append("width_mm = ?");         args.append(width_mm)
+    if depth_mm is not None:         sets.append("depth_mm = ?");         args.append(depth_mm)
+    if location_id is not None:      sets.append("location_id = ?");      args.append(location_id)
+    if not sets:
+        c.close(); return
+    sets.append("updated_at = datetime('now')")
+    sql = f"UPDATE items SET {', '.join(sets)} WHERE id = ?"
+    args.append(item_id)
+    cur.execute(sql, args)
+    c.commit()
+    c.close()
+    
+def list_items(q: str = "", page: int = 1, page_size: int = 100,
+               include_deleted: bool = False, sort: str = "created_at",
+               dir: str = "desc", status: str = "") -> Dict[str, Any]:
+    c = _connect(); c.row_factory = sqlite3.Row
+    cur = c.cursor()
+
+    # --- build WHERE ---
+    where, args = [], []
+
+    if q:
+        like = f"%{q}%"
+        where.append("(i.name LIKE ? OR i.tag LIKE ? OR i.note LIKE ? OR i.sku LIKE ?)")
+        args += [like, like, like, like]
+
+    if not include_deleted:
+        where.append("i.is_deleted = 0")
+
+    # status accepts: '', 'available'/'in_stock', 'out'/'out_of_stock'
+    s = (status or "").lower().strip()
+    status_sql = ""
+    if s in ("available", "in_stock", "in stock"):
+        status_sql = "AND (lm.movement_type IS NULL OR lm.movement_type <> 'out')"
+    elif s in ("out", "out_of_stock", "out of stock", "checked_out", "checked-out", "checked out"):
+        status_sql = "AND (lm.movement_type = 'out')"
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    # --- sort whitelist ---
+    allowed = {
+        "name": "i.name COLLATE NOCASE",
+        "created_at": "i.created_at",
+        "updated_at": "i.updated_at",
+        "quantity": "i.quantity",
+        "clearance_level": "(i.clearance_level + 0)",                  # numeric
+        "system_number": "l.system_number COLLATE NOCASE",
+        "shelf": "l.shelf COLLATE NOCASE",
+        "location": "l.system_number COLLATE NOCASE, l.shelf COLLATE NOCASE",
+        "last_movement_ts": "lm.last_movement_ts",
+    }
+    order_col = allowed.get(sort, "i.created_at")
+    order_dir = "ASC" if str(dir).lower() == "asc" else "DESC"
+
+    # --- last movement CTE for status + timestamps + holder name ---
+    last_move_cte = """
+      WITH last_move AS (
+        SELECT m.item_id,
+               m.movement_type,
+               m.operator_name,
+               m.timestamp AS last_movement_ts
+        FROM movements m
+        JOIN (
+          SELECT item_id, MAX(timestamp) AS ts
+          FROM movements
+          GROUP BY item_id
+        ) t ON t.item_id = m.item_id AND t.ts = m.timestamp
+      )
+    """
+
+    # --- count ---
+    cur.execute(f"""
+      {last_move_cte}
+      SELECT COUNT(*) AS n
+      FROM items i
+      LEFT JOIN locations l ON l.id = i.location_id
+      LEFT JOIN last_move lm ON lm.item_id = i.id
+      {where_sql} {status_sql}
+    """, args)
+    total = cur.fetchone()["n"]
+
+    # --- paging ---
+    page = max(1, int(page))
+    page_size = max(1, min(500, int(page_size)))
+    offset = (page - 1) * page_size
+
+    # --- data ---
+    cur.execute(f"""
+      {last_move_cte}
+      SELECT
+        i.id, i.sku, i.name, i.category, i.unit, i.quantity,
+        i.tag, i.note, i.height_mm, i.width_mm, i.depth_mm,
+        i.clearance_level, i.added_by, i.created_at, i.updated_at, i.is_deleted,
+        l.system_number, l.shelf,
+        lm.movement_type,
+        lm.operator_name AS currently_held_by,
+        lm.last_movement_ts
+      FROM items i
+      LEFT JOIN locations l ON l.id = i.location_id
+      LEFT JOIN last_move lm ON lm.item_id = i.id
+      {where_sql} {status_sql}
+      ORDER BY {order_col} {order_dir}, i.id DESC
+      LIMIT ? OFFSET ?
+    """, (*args, page_size, offset))
+    rows = cur.fetchall()
+    c.close()
+
+    return {
+        "items": [dict(r) for r in rows],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+    }
+    
+def list_movements(item_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    with _connect() as c:
+        cur = c.cursor()
+        cur.execute("""
+            SELECT id, item_id, movement_type, quantity, operator_name, note, timestamp
+            FROM movements
+            WHERE item_id = ?
+            ORDER BY timestamp DESC, id DESC
+            LIMIT ?
+        """, (item_id, max(1, min(500, int(limit)))))
+        return [dict(r) for r in cur.fetchall()]

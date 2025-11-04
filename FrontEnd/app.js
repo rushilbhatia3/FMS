@@ -100,6 +100,11 @@ function activateViewerTab() {
   sessionPaneladmin.classList.remove('session-panel-active');
 }
 
+
+function $val(id){ const el=document.getElementById(id); return el ? String(el.value).trim() : ""; }
+function $num(id){ const v=$val(id); const n=v===""?NaN:Number(v); return Number.isFinite(n)?n:null; }
+
+
 sessionTabadmin.addEventListener('click', activateadminTab);
 sessionTabViewer.addEventListener('click', activateViewerTab);
 
@@ -318,7 +323,34 @@ function applyRoleUI() {
 
 //end auth
 
+// delete (archive)
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-delete');
+  if (!btn) return;
 
+  e.stopPropagation();
+  const id = parseInt(btn.dataset.id, 10);
+  if (!Number.isInteger(id)) return alert('Invalid item id — cannot delete.');
+  if (!confirm('Archive this item?')) return;
+
+  const res = await fetch(`/api/items/${id}`, { method: 'DELETE', credentials: 'include' });
+  if (!res.ok) return alert('Delete failed: ' + await res.text());
+  await loadFiles();
+});
+
+// restore
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-restore');
+  if (!btn) return;
+
+  e.stopPropagation();
+  const id = parseInt(btn.dataset.id, 10);
+  if (!Number.isInteger(id)) return alert('Invalid item id — cannot restore.');
+
+  const res = await fetch(`/api/items/${id}/restore`, { method: 'PATCH', credentials: 'include' });
+  if (!res.ok) return alert('Restore failed: ' + await res.text());
+  await loadFiles();
+});
 
 let fileCache = {};
 
@@ -398,19 +430,19 @@ const csvImportBtn    = document.getElementById('csvImportBtn');
 const csvCancelBtn    = document.getElementById('csvCancelBtn');
 const csvImportStatus = document.getElementById('csvImportStatus');
 //files editing
-const editFileModalEl = document.getElementById('editFileModal');
-const editFileForm = document.getElementById('editFileForm');
+const editFileModalEl   = document.getElementById('editFileModal');
+const editFileForm      = document.getElementById('editFileForm');
+const editFileCancelBtn = document.getElementById('editFileCancelBtn');
 
-const editNameEl = document.getElementById('edit_name');
+const editNameEl       = document.getElementById('edit_name');
+const editTagEl        = document.getElementById('edit_tag');
+const editNoteEl       = document.getElementById('edit_note');
+const editSystemEl     = document.getElementById('edit_system_number');
+const editShelfEl      = document.getElementById('edit_shelf');
+const editClearanceEl  = document.getElementById('edit_clearance_level');
+// legacy
 const editSizeEl = document.getElementById('edit_size_label');
 const editTypeEl = document.getElementById('edit_type_label');
-const editTagEl = document.getElementById('edit_tag');
-const editNoteEl = document.getElementById('edit_note');
-const editSystemEl = document.getElementById('edit_system_number');
-const editShelfEl = document.getElementById('edit_shelf');
-const editClearanceEl = document.getElementById('edit_clearance_level');
-
-const editFileCancelBtn = document.getElementById('editFileCancelBtn');
 
 //export
 const exportOpenBtn = document.getElementById('exportOpenBtn');
@@ -477,64 +509,37 @@ function formatTimestamp(ts) {
 
 async function updateFooterStats() {
   try {
-    const res = await fetch(`/api/files/stats`, {
-      credentials: 'include',
-    });
-
-    if (!res.ok) {
-      console.warn("footer stats failed status", res.status);
-      return;
-    }
+    const res = await fetch(`/api/items/stats`, { credentials: 'include' });
+    if (!res.ok) { console.warn("footer stats failed status", res.status); return; }
 
     const stats = await res.json();
-    // expected from backend:
-    // {
-    //   active_count: number,
-    //   archived_count: number | null,
-    //   total_count: number
-    // }
+    // { active_count, archived_count (may be null for viewer), total_count }
 
-    const activeCount    = stats.active_count ?? 0;
-    const archivedCount  = stats.archived_count; // may be null for viewer/guest
-    const totalCount     = stats.total_count ?? activeCount;
+    const activeCount   = stats.active_count ?? 0;
+    const archivedCount = stats.archived_count;
+    const totalCount    = stats.total_count ?? activeCount;
 
-    const activeLabel =
-      `${activeCount} active file${activeCount === 1 ? '' : 's'}`;
-
-    // if viewer/guest we intentionally don't show archived
+    const activeLabel  = `${activeCount} active item${activeCount === 1 ? '' : 's'}`;
     const archivedLabel = (archivedCount === null || archivedCount === undefined)
-      ? ""
-      : `${archivedCount} archived`;
+      ? "" : `${archivedCount} archived`;
+    const totalLabel   = `${totalCount} total`;
 
-    const totalLabel =
-      `${totalCount} total`;
-
-    document.getElementById('footerActiveCount').textContent = activeLabel;
-
-    // Gracefully hide the bullet + text if archived is hidden
+    const activeEl   = document.getElementById('footerActiveCount');
     const archivedEl = document.getElementById('footerArchivedCount');
+    const totalEl    = document.getElementById('footerTotalCount');
+    if (activeEl)  activeEl.textContent = activeLabel;
+    if (totalEl)   totalEl.textContent  = totalLabel;
+
     const bullets = document.querySelectorAll('.footer-separator');
-    if (archivedLabel === "") {
+    if (!archivedLabel) {
       if (archivedEl) archivedEl.textContent = "";
-      // hide the middle bullet(s) if you want to be tidy for viewers
-      // simplest: just blank them, don't remove nodes
-      bullets.forEach(b => {
-        if (b.previousElementSibling?.id === 'footerActiveCount') {
-          b.textContent = "";
-        }
-      });
+      bullets.forEach(b => { if (b.previousElementSibling?.id === 'footerActiveCount') b.textContent = ""; });
     } else {
       if (archivedEl) archivedEl.textContent = archivedLabel;
-      bullets.forEach(b => {
-        if (b.previousElementSibling?.id === 'footerActiveCount') {
-          b.textContent = "•";
-        }
-      });
+      bullets.forEach(b => { if (b.previousElementSibling?.id === 'footerActiveCount') b.textContent = "•"; });
     }
 
-    document.getElementById('footerTotalCount').textContent = totalLabel;
-
-    document.getElementById('tableFooter').classList.add('show');
+    document.getElementById('tableFooter')?.classList.add('show');
   } catch (err) {
     console.warn("footer stats failed", err);
   }
@@ -579,8 +584,6 @@ form.addEventListener('submit', async (e) => {
     alert('Item added.');
     form.reset();
     closeAddFileModal();
-    // For now your list may still be /api/files; that’s fine.
-    // When you flip, call a new loadItems() or point loadFiles() to /api/items.
     await loadFiles();
 
   } catch (err) {
@@ -612,233 +615,229 @@ function updatePagerUI(page, pageSize, total) {
   }
 }
 
-document.querySelectorAll('th.sortable').forEach(th => {
-  th.addEventListener('click', () => {
-    const sortField = th.getAttribute('data-sort');
 
-    if (currentSort === sortField) {
-      currentDir = currentDir === "asc" ? "desc" : "asc";
-    } else {
-      currentSort = sortField;
-      // default direction depends on column
-      currentDir = (sortField === "date_of_previous_checkout") ? "asc" : "desc";
-    }
-
-    loadFiles();
-    updateSortIndicators();
-  });
-});
-
-
-// fetch and display 
+// --------------------------------------------------------------------------------fetch and display 
 async function loadFiles() {
   const includeDeleted = !!(showDeletedEl && showDeletedEl.checked);
   const q = searchInputEl ? searchInputEl.value.trim() : "";
   const statusVal = statusFilterEl ? statusFilterEl.value : "";
 
-  const role = currentUser?.role || "guest";
-  const isadmin = role === "admin";
-
-  const query = new URLSearchParams({
+  const params = new URLSearchParams({
+    q,
     include_deleted: includeDeleted ? "true" : "false",
-    q: q,
-    sort: currentSort,
-    dir: currentDir,
+    status: statusVal || "",
+    sort: currentSort || "created_at",
+    dir: currentDir || "desc",
     page: String(currentPage),
     page_size: String(PAGE_SIZE),
   });
 
-  if (statusVal) {
-    query.set("status", statusVal);
-  }
-
   let data;
   try {
-    const res = await fetch(`/api/files?${query.toString()}`, {
-      credentials: 'include',
-    });
+    const res = await fetch(`/api/items?${params.toString()}`, { credentials: 'include' });
     if (!res.ok) throw new Error(await res.text());
-
-    // IMPORTANT: after pagination backend, this is now an object
-    data = await res.json();
-    // expected: { items: [...], page, page_size, total }
+    data = await res.json(); // { items, page, page_size, total }
   } catch (err) {
     console.error(err);
-    alert('Failed to load files: ' + err.message);
+    alert('Failed to load files: ' + (err.message || err));
     return;
   }
 
-  // fallbacks in case backend doesn't send something
-  const items     = data.items     || [];
-  const page      = data.page      || currentPage;
-  const pageSize  = data.page_size || PAGE_SIZE;
-  const total     = data.total     ?? items.length;
+  const items    = data.items     || [];
+  const page     = data.page      || currentPage;
+  const pageSize = data.page_size || PAGE_SIZE;
+  const total    = data.total     ?? items.length;
 
-  // cache + render rows
   tableBody.innerHTML = '';
   fileCache = {};
 
-  items.forEach(f => {
+  // optional client-side search refinement
+  let view = items;
+  const qnorm = q.toLowerCase();
+  if (qnorm) {
+    view = items.filter(f => {
+      const held = (f.currently_held_by || '').toLowerCase();
+      const note = (f.note || '').toLowerCase();
+      const name = (f.name || '').toLowerCase();
+      const tag  = (f.tag  || '').toLowerCase();
+      return held.includes(qnorm) || note.includes(qnorm) || name.includes(qnorm) || tag.includes(qnorm);
+    });
+  }
+
+  view.forEach(f => {
     fileCache[f.id] = f;
 
     const isDeleted = Number(f.is_deleted) === 1;
     const isOut = !!f.currently_held_by;
 
     // status badge
-    let statusBadgeHTML = "";
-    if (isDeleted) {
-      statusBadgeHTML = `<span class="badge badge-status-archived">Archived</span>`;
-    } else if (isOut) {
-      statusBadgeHTML = `<span class="badge badge-status-out">Checked out</span>`;
-    } else {
-      statusBadgeHTML = `<span class="badge badge-status-available">Available</span>`;
-    }
+    const statusBadgeHTML = isDeleted
+      ? `<span class="badge badge-status-archived">Archived</span>`
+      : isOut
+        ? `<span class="badge badge-status-out">Checked out</span>`
+        : `<span class="badge badge-status-available">Available</span>`;
 
     // clearance badge
-    const clearanceLevel = f.clearance_level;
-    let clearanceBadgeClass = "badge-clearance";
-    if (clearanceLevel === 1) clearanceBadgeClass = "badge-clearance-1";
-    else if (clearanceLevel === 2) clearanceBadgeClass = "badge-clearance-2";
-    else if (clearanceLevel === 3) clearanceBadgeClass = "badge-clearance-3";
-    else if (clearanceLevel === 4) clearanceBadgeClass = "badge-clearance-4";
-
-    const clearanceBadgeHTML =
-      `<span class="badge ${clearanceBadgeClass}">L${clearanceLevel}</span>`;
+    const cl = Number(f.clearance_level) || 1;
+    const clearanceBadgeHTML = `<span class="badge badge-clearance-${cl}">L${cl}</span>`;
 
     const createdDisplay = formatTimestamp(f.created_at);
 
-    let prevCheckoutDisp = "—"; // default = nothing to show
-
-    if (f.currently_held_by) {
-      // Item is currently OUT.
-      // We expect to have f.date_of_checkout for this active movement.
+    let prevCheckoutDisp = "—";
+    if (isOut) {
       if (f.date_of_checkout) {
-        prevCheckoutDisp = `
-          <span style="color:#a11; font-weight:500;">↗</span>
-          ${formatTimestamp(f.date_of_checkout)}
-        `;
+        prevCheckoutDisp = `<span style="color:#a11; font-weight:500;">↗</span> ${formatTimestamp(f.date_of_checkout)}`;
       }
     } else {
-      // Item is currently IN.ß
-      // Only show green arrow if we actually have a recorded return.
-      // Depending on what you're returning from the API, use either:
-      //   f.last_return_at   (if you expose "last time it was returned")
-      // OR
-      //   f.last_movement_ts (if you use the CASE expression)
       const lastReturnTs = f.last_return_at || f.last_movement_ts;
-
       if (lastReturnTs) {
-        prevCheckoutDisp = `
-          <span style="color:#145d2e; font-weight:500;">↘</span>
-          ${formatTimestamp(lastReturnTs)}
-        `;
+        prevCheckoutDisp = `<span style="color:#145d2e; font-weight:500;">↘</span> ${formatTimestamp(lastReturnTs)}`;
       }
     }
-    // admin-only actions
-    const checkoutButtons = (() => {
-      if (!isadmin) {
-        return "—";
-      }
-      if (isDeleted) {
-        return "—";
-      }
-      if (isOut) {
-        return `<button class="table-btn btn-return" onclick="openReturnModal(${f.id})">Return</button>`;
-      } else {
-        return `<button class="table-btn btn-checkout" onclick="openCheckoutModal(${f.id})">Check Out</button>`;
-      }
-    })();
 
-    const lifecycleButtons = (() => {
-      if (!isadmin) {
-        return "—";
-      }
-      if (isDeleted) {
-        return `<button class="table-btn btn-restore" onclick="restoreFile(${f.id})">Restore</button>`;
-      } else {
-        return `<button class="table-btn btn-delete" onclick="deleteFile(${f.id})">Delete</button>`;
-      }
-    })();
+    const isAdmin = (currentUser?.role || "guest") === "admin";
 
-    const editButtonHTML = (() => {
-      if (!isadmin) {
-        return "—";
-      }
-      return `
-        <button class="icon-btn" onclick="openEditModal(${f.id}); event.stopPropagation();"
-          title="Edit file">
-          ✎
-        </button>
-      `;
-    })();
+    // lifecycle (delete/restore) — call the correct functions you actually have
+    const lifecycleButtons = isAdmin
+      ? (isDeleted
+          ? `<button type="button" class="table-btn btn-restore" data-id="${f.id}">Restore</button>`
+          : (isOut
+              ? `—` // don’t allow delete while checked out
+              : `<button type="button" class="table-btn btn-delete" data-id="${f.id}">Delete</button>`))
+      : "—";
+
+    // checkout/return
+    const checkoutButtons = isAdmin
+      ? (isDeleted
+          ? "—"
+          : (isOut
+              ? `<button class="table-btn btn-return" onclick="openReturnModal(${f.id})">Return</button>`
+              : `<button class="table-btn btn-checkout" onclick="openCheckoutModal(${f.id})">Check Out</button>`))
+      : "—";
+
+    const editButtonHTML = isAdmin
+      ? `<button class="icon-btn" onclick="openEditModal(${f.id}); event.stopPropagation();" title="Edit item">✎</button>`
+      : "—";
 
     const row = document.createElement('tr');
+row.classList.add('row-clickable');
+if (isDeleted) row.classList.add('row-deleted');
+row.dataset.id = String(f.id); 
 
-    row.addEventListener('click', (e) => {
-      if (e.target.tagName === 'BUTTON') return;
-      openFileDetails(f.id);
-    });
+row.innerHTML = `
+  <td class="cell-name">${f.name}</td>
+  <td>${f.system_number}-${f.shelf}</td>
+  <td>${clearanceBadgeHTML}</td>
+  <td>${statusBadgeHTML}</td>
+  <td>${f.added_by}</td>
+  <td>${createdDisplay}</td>
+  <td>${f.currently_held_by || '—'}</td>
+  <td>${formatTimestamp(f.date_of_checkout)}</td>
+  <td>${prevCheckoutDisp}</td>
+  <td>${f.tag || ''}</td>
+  <td>${f.note || ''}</td>
+  <td class="col-actions">
+    ${isAdmin
+      ? (isDeleted
+          ? `<button type="button" class="table-btn btn-restore" data-id="${f.id}">Restore</button>`
+          : (isOut ? `—`
+                   : `<button type="button" class="table-btn btn-delete" data-id="${f.id}">Delete</button>`))
+      : "—"}
+  </td>
+  <td class="cell-move">
+    ${isAdmin
+      ? (isDeleted
+          ? "—"
+          : (isOut
+              ? `<button type="button" class="table-btn btn-return" data-id="${f.id}">Return</button>`
+              : `<button type="button" class="table-btn btn-checkout" data-id="${f.id}">Check Out</button>`))
+      : "—"}
+  </td>
+  <td class="cell-edit">
+    ${isAdmin ? `<button type="button" class="icon-btn btn-edit" data-id="${f.id}" title="Edit item">✎</button>` : "—"}
+  </td>
+`;
+tableBody.appendChild(row);
+  });
 
-    row.classList.add('row-clickable');
-    if (isDeleted) {
-      row.classList.add('row-deleted');
+  // one-time delegated wiring for delete/restore (use the real function names)
+  if (!tableBody._wiredDelegates) {
+  tableBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (btn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = Number(btn.dataset.id);
+      if (btn.classList.contains('btn-delete'))  { e.stopPropagation(); deleteItem(id); return; }
+      if (btn.classList.contains('btn-restore')) { e.stopPropagation(); restoreItem(id); return; }
+      if (btn.classList.contains('btn-checkout')){ e.stopPropagation(); openCheckoutModal(id); return; }
+      if (btn.classList.contains('btn-return'))  { e.stopPropagation(); openReturnModal(id); return; }
+      if (btn.classList.contains('btn-edit'))    { openEditModal(id); return; }
+      return; // unknown button type
     }
 
-    row.innerHTML = `
-      <td class="cell-name">${f.name}</td>
-      <td>${f.system_number}-${f.shelf}</td>
-      <td>${clearanceBadgeHTML}</td>
-      <td>${statusBadgeHTML}</td>
-      <td>${f.added_by}</td>
-      <td>${createdDisplay}</td>
-      <td>${f.currently_held_by || '—'}</td>
-      <td>${formatTimestamp(f.date_of_checkout)}</td>
-      <td>${prevCheckoutDisp}</td>
-      <td>${f.tag || ''}</td>
-      <td>${f.note || ''}</td>
-      <td class="col-actions">${lifecycleButtons}</td>
-      <td class="cell-move">${checkoutButtons}</td>
-      <td class="cell-edit">${editButtonHTML}</td>
-    `;
+    // Not a button: treat as row click → open details
+    const tr = e.target.closest('tr');
+    if (!tr) return;
+    const id = Number(tr.dataset.id);
+    if (!Number.isFinite(id)) return;
 
-    tableBody.appendChild(row);
+    // Be tolerant to whichever detail fn exists in your codebase
+    const openDetails =
+      (typeof openFileDetails === 'function' && openFileDetails) ||
+      (typeof openItemDetails === 'function' && openItemDetails);
+
+    if (openDetails) openDetails(id);
+    else console.warn('No details opener found (openFileDetails/openItemDetails).');
   });
 
-  // update footer stats
+  tableBody._wiredDelegates = true;
+}
+
   await updateFooterStats();
-
-  // update pagination UI
-  updatePagerUI(page, pageSize, total);
+  updatePagerUI(page, pageSize, qnorm ? view.length : total);
 }
 
-async function deleteFile(id) {
-  if (!confirm("Soft-delete this file? It can be restored later.")) return;
-  const res = await fetch(`/api/files/${id}`, {
-    method: "DELETE",
-    credentials: 'include',
-  });
-  if (!res.ok) {
-    const msg = await res.text();
-    alert("Delete failed: " + msg);
+
+function openEditModal(id) {
+  const f = fileCache?.[id];
+  if (!f) {
+    console.error('openEditModal: item not in fileCache', id, fileCache);
     return;
   }
-  await loadFiles();
+  editingFileId = id; // <- required by your submit handler
+  // populate fields (adjust IDs to yours)
+  editNameEl.value      = f.name || '';
+  editSizeEl.value      = f.size_label || '';
+  editTypeEl.value      = f.type_label || '';
+  editTagEl.value       = f.tag || '';
+  editNoteEl.value      = f.note || '';
+  editSystemNumberEl.value = f.system_number || '';
+  editShelfEl.value        = f.shelf || '';
+  editClearanceEl.value    = f.clearance_level ?? 1;
+
+  showModal(editModalEl);  // or editModalEl.classList.add('is-open')
 }
+window.openEditModal = openEditModal;
 
 
 
-async function restoreFile(id) {
-  const res = await fetch(`/api/files/${id}/restore`, {
-    method: "PATCH",
-    credentials: 'include',
+function openOutboundModal(id){ moveMode='out'; moveItemId=id; openQtyModal("Outbound"); }
+function openInboundModal(id){  moveMode='in';  moveItemId=id; openQtyModal("Inbound"); }
+
+async function confirmMovement(){
+  const qty = Number(document.getElementById('movement_qty').value);
+  const note = (document.getElementById('movement_note').value||'').trim();
+  if (!qty || qty <= 0) return alert("Enter a quantity > 0");
+  const res = await fetch('/api/movements', {
+    method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+    body: JSON.stringify({ item_id: moveItemId, movement_type: moveMode, quantity: qty, note })
   });
-  if (!res.ok) {
-    const msg = await res.text();
-    alert("Restore failed: " + msg);
-    return;
-  }
-  await loadFiles();
+  if (!res.ok) return alert("Movement failed: " + await res.text());
+  closeQtyModal(); await loadFiles();
 }
+
+
 
 // toDo
 function openCheckoutModal(fileId) {
@@ -881,69 +880,42 @@ modalCancelBtn.addEventListener('click', () => {
 });
 
 modalConfirmBtn.addEventListener('click', async () => {
-  if (!modalMode || !modalFileId) {
-    alert("Something went wrong. No file selected.");
-    return;
+  if (!modalMode || !modalFileId) return alert("No item selected.");
+
+  const f = fileCache[modalFileId];
+  const available = Number(f?.quantity ?? 0);
+  const qty = parseInt(qtyInput?.value || '0', 10);
+  const noteVal = (modalNoteInput?.value || "").trim();
+
+  if (!qty || qty < 1) return alert("Enter a quantity of at least 1.");
+
+  if (modalMode === "checkout") {
+    if (available < 1) return alert("No stock available to check out.");
+    if (qty > available) return alert(`Max you can checkout is ${available}.`);
+    const res = await fetch(`/api/movements`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({ item_id: modalFileId, movement_type: "out", quantity: qty, note: noteVal })
+    });
+    if (!res.ok) return alert("Outbound failed: " + await res.text());
+  } else if (modalMode === "return") {
+    const res = await fetch(`/api/movements`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: 'include',
+      body: JSON.stringify({ item_id: modalFileId, movement_type: "in", quantity: qty, note: noteVal })
+    });
+    if (!res.ok) return alert("Inbound failed: " + await res.text());
   }
 
-  try {
-    if (modalMode === "checkout") {
-      const holderName = modalHolderInput.value.trim();
-      const noteVal = modalNoteInput.value.trim();
-
-      if (!holderName) {
-        alert("Holder name is required to check out.");
-        return;
-      }
-
-      const res = await fetch(`/api/files/${modalFileId}/checkout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify({
-          holder_name: holderName,
-          note: noteVal
-        })
-      });
-
-      if (!res.ok) {
-        const msg = await res.text();
-        alert("Checkout failed: " + msg);
-        return;
-      }
-
-    } else if (modalMode === "return") {
-      const noteVal = modalNoteInput.value.trim();
-
-      const res = await fetch(`/api/files/${modalFileId}/return`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-           noteVal
-        )
-      });
-
-      if (!res.ok) {
-        const msg = await res.text();
-        alert("Return failed: " + msg);
-        return;
-      }
-    }
-
-    closeModal();
-    await loadFiles();
-
-  } catch (err) {
-    alert("Request failed: " + err.message);
-  }
+  closeModal();
+  await loadFiles();
 });
-
 //end of todo
 
 // checkbox toggling deleted view
-if (showDeletedEl) {
-  showDeletedEl.addEventListener('change', loadFiles);
-}
+if (showDeletedEl) showDeletedEl.addEventListener('change', loadFiles);
 
 // search box input
 if (searchInputEl) {
@@ -959,86 +931,84 @@ function closeDetailsModal() {
 
 detailsCloseBtn.addEventListener('click', closeDetailsModal);
 
-async function openFileDetails(fileId) {
+async function openItemDetails(itemId) {
   try {
-    const res = await fetch(`/api/files/${fileId}/details`);
+    // 1) fetch the item
+    const res = await fetch(`/api/items/${itemId}`, { credentials:'include' });
     if (!res.ok) {
       const msg = await res.text();
-      alert("Failed to load file details: " + msg);
+      alert("Failed to load item details: " + msg);
       return;
     }
+    const f = await res.json();
 
-    const data = await res.json();
-    const f = data.file;
-    const history = data.history || [];
+    // 2) (optional) fetch recent movements, ignore if 404/not implemented
+    let history = [];
+    try {
+      const h = await fetch(`/api/movements?item_id=${itemId}`, { credentials:'include' });
+      if (h.ok) history = await h.json();
+    } catch (_) {}
 
-    // Fill top section
-    detailsTitleEl.textContent = `File Details — ${f.name || ''}`;
+    // 3) fill top section (items schema)
+    detailsTitleEl.textContent = `Item — ${f.name || ''}`;
     detailsIdEl.textContent = f.id ?? "";
     detailsNameEl.textContent = f.name ?? "";
-    detailsSizeEl.textContent = f.size_label || "—";
-    detailsTypeEl.textContent = f.type_label || "—";
     detailsTagEl.textContent = f.tag || "—";
     detailsNoteEl.textContent = f.note || "—";
     detailsLocEl.textContent = `${f.system_number || ''}-${f.shelf || ''}`;
-    
-    const cl = f.clearance_level;
-    let clearanceBadgeClass = "badge-clearance";
-    if (cl === 1) clearanceBadgeClass = "badge-clearance-1";
-    else if (cl === 2) clearanceBadgeClass = "badge-clearance-2";
-    else if (cl === 3) clearanceBadgeClass = "badge-clearance-3";
-    else if (cl === 4) clearanceBadgeClass = "badge-clearance-4";
 
-    detailsClearanceEl.innerHTML = `<span class="badge ${clearanceBadgeClass}">L${cl}</span>`;
+    const cl = Number(f.clearance_level || 1);
+    const badgeCls = `badge-clearance-${Math.min(Math.max(cl,1),4)}`;
+    detailsClearanceEl.innerHTML = `<span class="badge ${badgeCls}">L${cl}</span>`;
 
     detailsAddedByEl.textContent = f.added_by ?? "";
     detailsCreatedEl.textContent = formatTimestamp(f.created_at);
     detailsModifiedEl.textContent = formatTimestamp(f.updated_at);
-    //detailsUpdatedAtEl.textContent = formatTimestamp();
-    detailsCheckoutAtEl.textContent = formatTimestamp(f.date_of_checkout);
-    detailsPrevCheckoutEl.textContent = formatTimestamp(f.date_of_previous_checkout); 
-    
 
-    detailsHolderEl.textContent = f.currently_held_by || "—";
+    // dimensions (HxWxD mm)
+    const dim = [f.height_mm, f.width_mm, f.depth_mm].every(v => v == null)
+      ? "—"
+      : `${f.height_mm ?? '—'} × ${f.width_mm ?? '—'} × ${f.depth_mm ?? '—'} mm`;
+    detailsSizeEl.textContent = dim;       // repurpose existing slot
+    detailsTypeEl.textContent = "—";       // legacy field not in items
 
-
-    // Status logic: deleted / out / available
-    let statusBadgeHTML = "";
-    if (Number(f.is_deleted) === 1) {
-      statusBadgeHTML = `<span class="badge badge-status-archived">Archived</span>`;
-    } else if (f.currently_held_by) {
-      statusBadgeHTML = `<span class="badge badge-status-out">Checked out</span>`;
-    } else {
-      statusBadgeHTML = `<span class="badge badge-status-available">Available</span>`;
-    }
+    // status: archived / in stock / out of stock
+    const isDeleted = Number(f.is_deleted) === 1;
+    const qty = Number(f.quantity ?? 0);
+    const statusBadgeHTML = isDeleted
+      ? `<span class="badge badge-status-archived">Archived</span>`
+      : (qty > 0
+          ? `<span class="badge badge-status-available">In stock</span>`
+          : `<span class="badge badge-status-out">Out of stock</span>`);
     detailsStatusEl.innerHTML = statusBadgeHTML;
 
+    // fields no longer used in items
+    detailsHolderEl.textContent = "—";
+    detailsCheckoutAtEl.textContent = "—";
+    detailsPrevCheckoutEl.textContent = "—";
 
-    // Fill history block
-    if (history.length === 0) {
+    // 4) history render (if movements exist)
+    if (!history || history.length === 0) {
       detailsHistoryEl.innerHTML = `<div>No movement history.</div>`;
     } else {
       detailsHistoryEl.innerHTML = history.map(h => {
-      const checkoutTime = formatTimestamp(h.checkout_at);
-      const returnTime   = formatTimestamp(h.return_at);
-      const who          = h.holder_name || "—";
-      const op           = h.admin_name || "";
-      const noteText     = h.note
-        ? `<div class="history-note">Note: ${h.note}</div>`
-        : "";
-
-      return `
-        <div class="history-entry">
-          <div class="history-line"><strong>${who}</strong> checked out at ${checkoutTime}</div>
-          <div class="history-line">Returned: ${returnTime}</div>
-          <div class="history-line">Logged by: ${op}</div>
-          ${noteText}
-        </div>
-      `;
-    }).join("");
+        const ts   = formatTimestamp(h.timestamp || h.checkout_at || h.return_at);
+        const type = (h.movement_type || "").toUpperCase();
+        const q    = Number(h.quantity ?? 0);
+        const qtxt = q >= 0 ? `+${q}` : `${q}`;
+        const who  = h.operator_name || h.admin_name || "—";
+        const note = h.note ? `<div class="history-note">Note: ${h.note}</div>` : "";
+        return `
+          <div class="history-entry">
+            <div class="history-line"><strong>${type}</strong> ${qtxt} at ${ts}</div>
+            <div class="history-line">By: ${who}</div>
+            ${note}
+          </div>
+        `;
+      }).join("");
     }
 
-    // Show modal
+    // 5) show modal
     detailsModalEl.style.display = "flex";
 
   } catch (err) {
@@ -1046,29 +1016,69 @@ async function openFileDetails(fileId) {
   }
 }
 
+
+
+
 let editingFileId = null;
 
-function openEditModal(fileId) {
-  const f = fileCache[fileId];
-  if (!f) {
-    alert("Could not load file data.");
-    return;
-  }
+function openCheckoutModal(itemId) {
+  modalMode = "checkout";
+  modalFileId = itemId;
 
-  editingFileId = fileId;
+  const f = fileCache[itemId];
+  const available = Number(f?.quantity ?? 0);
 
-  // Prefill fields
-  editNameEl.value = f.name || "";
-  editSizeEl.value = f.size_label || "";
-  editTypeEl.value = f.type_label || "";
-  editTagEl.value = f.tag || "";
-  editNoteEl.value = f.note || "";
-  editSystemEl.value = f.system_number || "";
-  editShelfEl.value = f.shelf || "";
-  editClearanceEl.value = f.clearance_level || "1";
+  modalTitleEl.textContent = "Check Out";
+  holderFieldEl.style.display = "none";
 
-  editFileModalEl.style.display = "flex";
+  // quantity bounds: 1..available (min 1, disable confirm if 0)
+  setQty(available > 0 ? 1 : 0);
+  qtyInput.min = 1;
+  qtyInput.max = Math.max(1, available);
+  clampQtyTo(1, available);
+  qtyHint.textContent = `Available: ${available}`;
+
+  modalEl.style.display = "flex";
 }
+
+function openReturnModal(itemId) {
+  modalMode = "return";
+  modalFileId = itemId;
+
+  const f = fileCache[itemId];
+  const available = Number(f?.quantity ?? 0);
+
+  modalTitleEl.textContent = "Check In";
+  holderFieldEl.style.display = "none";
+
+  // quantity bounds: 1..(no cap). We can show current stock for info.
+  setQty(1);
+  qtyInput.min = 1;
+  qtyInput.removeAttribute('max');
+  qtyHint.textContent = `Current stock: ${available}`;
+
+  modalEl.style.display = "flex";
+}
+
+const qtyInput = document.getElementById('movement_qty');
+const qtyHint  = document.getElementById('qtyHint');
+const qtyDec   = document.getElementById('qtyDec');
+const qtyInc   = document.getElementById('qtyInc');
+
+function setQty(v) {
+  const n = Math.max(1, parseInt(v || '1', 10));
+  qtyInput.value = String(n);
+}
+
+function clampQtyTo(min, max) {
+  const n = parseInt(qtyInput.value || '1', 10);
+  qtyInput.value = String(Math.max(min, Math.min(max ?? Number.MAX_SAFE_INTEGER, n)));
+}
+
+if (qtyDec) qtyDec.addEventListener('click', () => setQty((parseInt(qtyInput.value||'1',10) - 1)));
+if (qtyInc) qtyInc.addEventListener('click', () => setQty((parseInt(qtyInput.value||'1',10) + 1)));
+
+
 
 function closeEditModal() {
   editFileModalEl.style.display = "none";
@@ -1079,42 +1089,31 @@ editFileCancelBtn.addEventListener("click", closeEditModal);
 
 editFileForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!editingFileId) {
-    alert("No file selected.");
-    return;
-  }
+  if (!editingFileId) return alert("No item selected.");
 
   const payload = {
-    name: editNameEl.value.trim(),
-    size_label: editSizeEl.value.trim(),
-    type_label: editTypeEl.value.trim(),
-    tag: editTagEl.value.trim(),
-    note: editNoteEl.value.trim(),
-    system_number: editSystemEl.value.trim(),
-    shelf: editShelfEl.value.trim(),
-    clearance_level: parseInt(editClearanceEl.value, 10)
+    name: editNameEl?.value.trim() || "",
+    tag: editTagEl?.value.trim() || "",
+    note: editNoteEl?.value.trim() || "",
+    clearance_level: parseInt(editClearanceEl?.value, 10) || 1,
+    location: {
+      system_number: (editSystemEl?.value || "").trim() || null,
+      shelf: (editShelfEl?.value || "").trim() || null,
+    },
   };
 
-  try {
-    const res = await fetch(`/api/files/${editingFileId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: 'include',
-      body: JSON.stringify(payload)
-    });
+  const res = await fetch(`/api/items/${editingFileId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return alert("Update failed: " + await res.text());
 
-    if (!res.ok) {
-      const msg = await res.text();
-      alert("Update failed: " + msg);
-      return;
-    }
-
-    closeEditModal();
-    await loadFiles();
-  } catch (err) {
-    alert("Network error: " + err.message);
-  }
+  closeEditModal();
+  await loadFiles();
 });
+
 
 function activateManualTab() {
   tabManualBtn.classList.add('tab-btn-active');
@@ -1358,16 +1357,12 @@ function updateSortIndicators() {
 document.querySelectorAll('th.sortable').forEach(th => {
   th.addEventListener('click', () => {
     const sortField = th.getAttribute('data-sort');
-
     if (currentSort === sortField) {
-      // toggle direction
-      currentDir = currentDir === "asc" ? "desc" : "asc";
+      currentDir = currentDir === 'asc' ? 'desc' : 'asc';
     } else {
-      // switch to new sort field, default direction
       currentSort = sortField;
-      currentDir = "asc";
+      currentDir = 'desc';
     }
-
     loadFiles();
     updateSortIndicators();
   });
@@ -1408,7 +1403,7 @@ function readDefaultStatusFilter() {
   return localStorage.getItem('table.filter.status') || ''; // '', 'available', 'out'
 }
 function readDefaultShowDeleted() {
-  return localStorage.getItem('table.showDeleted.default') === 'true';
+  return localStorage.getItem('table.showDeleted.default') === 'false' ? false : true;
 }
 
 

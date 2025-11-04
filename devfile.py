@@ -59,7 +59,7 @@ VALUES (1, 'homeofcreativechaos@gmail.com', 180);
        
 def executor(executee):
     with db._connect() as cursor: 
-        cursor.executescript(executee)
+        print(cursor.executescript(executee))
     
 
 exec1="""
@@ -183,6 +183,63 @@ CREATE INDEX IF NOT EXISTS idx_orderitems_order ON order_items(order_id);
 
 """
 
+exec2="""
+ALTER TABLE movements ADD COLUMN holder_name TEXT;
+CREATE INDEX IF NOT EXISTS idx_movements_item_ts
+ON movements(item_id, timestamp DESC);
+DROP VIEW IF EXISTS item_status;
+CREATE VIEW item_status AS
+WITH last_move AS (
+  SELECT
+    m.item_id,
+    m.movement_type,
+    m.timestamp,
+    m.holder_name,
+    ROW_NUMBER() OVER (PARTITION BY m.item_id ORDER BY m.timestamp DESC, m.id DESC) AS rn
+  FROM movements m
+  -- Only in/out movements determine "outness"; adjust/transfer shouldn't mark holder.
+  WHERE m.movement_type IN ('in','out')
+),
+prev_return AS (
+  -- most recent 'in' (useful if you want last_return_at alongside checkout info)
+  SELECT
+    m.item_id,
+    MAX(m.timestamp) AS last_return_at
+  FROM movements m
+  WHERE m.movement_type = 'in'
+  GROUP BY m.item_id
+)
+SELECT
+  i.id                     AS item_id,
+  i.name,
+  i.tag,
+  i.note,
+  i.clearance_level,
+  i.added_by,
+  i.created_at,
+  i.updated_at,
+  i.is_deleted,
+  l.system_number,
+  l.shelf,
+
+  -- Derived status from last movement
+  CASE WHEN lm.movement_type = 'out' THEN 1 ELSE 0 END AS is_out,
+  CASE WHEN lm.movement_type = 'out' THEN lm.holder_name END AS currently_held_by,
+  CASE WHEN lm.movement_type = 'out' THEN lm.timestamp END     AS date_of_checkout,
+  pr.last_return_at                                          AS last_return_at,
+  lm.timestamp                                               AS last_movement_ts
+
+FROM items i
+LEFT JOIN locations l     ON l.id = i.location_id
+LEFT JOIN last_move lm    ON lm.item_id = i.id AND lm.rn = 1
+LEFT JOIN prev_return pr  ON pr.item_id = i.id;
+
+
+
+
+"""
+
+
 def reset_users():
     print(" Resetting all users...")
     with closing(db.get_conn()) as conn, conn:
@@ -221,4 +278,4 @@ def reset_users():
         print(f"✅  Inserted {len(seed_users)} users.")
 
 #reset_users()
-executor(exec1)
+executor(exec2)

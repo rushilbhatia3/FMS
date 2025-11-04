@@ -596,15 +596,15 @@ table {
 }
 
 .badge-clearance-1 {
-  background: #d9eaff;
-  color: #113a6b;
-  border-color: #b4d3f6;
-}
-
-.badge-clearance-2 {
   background: #d8f3ff;
   color: #134f5e;
   border-color: #b6e3f1;
+}
+
+.badge-clearance-2 {
+  background: #e7e3ff;
+  color: #302865;
+  border-color: #c9c2f1;
 }
 
 .badge-clearance-3 {
@@ -1241,3 +1241,7 @@ td span {
   font-size: 0.9em;
   vertical-align: middle;
 }
+
+.qty-wrap { display:flex; align-items:center; gap:.5rem; }
+.qty-btn { padding:.25rem .5rem; border:1px solid #ddd; background:#f8f8f8; border-radius:4px; }
+.form-hint { font-size:.8rem; color:#666; margin-top:.25rem; }

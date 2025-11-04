@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <title>File Management System</title>
     <link rel="stylesheet" href="style.css">
-    <script defer src="app.js"></script>
+
     <!--script defer src="functionality.js"></script -->
 
 </head>
@@ -39,9 +39,9 @@
     </label>
 
     <select id="statusFilter" class="small-select">
-      <option value="">All files</option>
+      <option value="">All</option>
       <option value="available">Available only</option>
-      <option value="out">Checked out only</option>
+      <option value="out">Out only</option>
     </select>
 
 
@@ -74,7 +74,7 @@
             <th class="sortable" data-sort="created_at">Date Added<span class="sort-indicator"></span></th>
             <th>Held By</th>
             <th>Checkout</th>
-            <th class="sortable" data-sort="prev_checkout">Last Seen<span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="last_movement_ts">Last Seen<span class="sort-indicator"></span></th>
             <th>Tag</th>
             <th class="col-note">Note</th>
             <th class="col-actions">Actions</th>
@@ -130,6 +130,18 @@
         placeholder="Who is taking the file?"
       />
     </div>
+
+    <!-- Quantity -->
+    <label class="form-field">
+      <span class="form-label">Quantity</span>
+      <div class="qty-wrap">
+        <button type="button" class="qty-btn" id="qtyDec">−</button>
+        <input type="number" id="movement_qty" class="form-input"
+              inputmode="numeric" min="1" step="1" value="1" />
+        <button type="button" class="qty-btn" id="qtyInc">+</button>
+      </div>
+      <div id="qtyHint" class="form-hint"></div>
+    </label>
 
     <div class="form-section">
       <label class="form-label">
@@ -464,123 +476,57 @@
 <!-- Edit File Modal -->
 <div id="editFileModal" class="modal modal-editfile">
   <div class="modal-content">
-    <h3 class="modal-title">Edit File</h3>
+    <h3 class="modal-title">Edit Item</h3>
 
     <form id="editFileForm" class="form">
-      <!-- Name -->
       <label class="form-field">
         <span class="form-label">Name</span>
-        <input
-          type="text"
-          id="edit_name"
-          name="name"
-          class="form-input"
-          required
-        />
+        <input type="text" id="edit_name" class="form-input" required />
       </label>
 
-      <!-- Size -->
       <label class="form-field">
         <span class="form-label">Size</span>
-        <input
-          type="text"
-          id="edit_size_label"
-          name="size_label"
-          class="form-input"
-        />
+        <input type="text" id="edit_size_label" class="form-input" />
       </label>
 
-      <!-- Type -->
       <label class="form-field">
         <span class="form-label">Type</span>
-        <input
-          type="text"
-          id="edit_type_label"
-          name="type_label"
-          class="form-input"
-        />
+        <input type="text" id="edit_type_label" class="form-input" />
       </label>
 
-      <!-- Tag -->
       <label class="form-field">
         <span class="form-label">Tag</span>
-        <input
-          type="text"
-          id="edit_tag"
-          name="tag"
-          class="form-input"
-        />
+        <input type="text" id="edit_tag" class="form-input" />
       </label>
 
-      <!-- Note -->
       <label class="form-field">
         <span class="form-label">Note / instruction</span>
-        <input
-          id="edit_note"
-          name="note"
-          class="form-input"
-        />
+        <input id="edit_note" class="form-input" />
       </label>
 
-      <!-- Location -->
       <fieldset class="fieldset-block">
         <legend class="fieldset-legend">Location</legend>
-
         <label class="form-field">
           <span class="form-label">System number</span>
-          <input
-            type="text"
-            id="edit_system_number"
-            name="system_number"
-            class="form-input"
-            required
-          />
+          <input type="text" id="edit_system_number" class="form-input" />
         </label>
-
         <label class="form-field">
           <span class="form-label">Shelf</span>
-          <input
-            type="text"
-            id="edit_shelf"
-            name="shelf"
-            class="form-input"
-            required
-          />
+          <input type="text" id="edit_shelf" class="form-input" />
         </label>
       </fieldset>
 
-      <!-- Clearance -->
       <label class="form-field">
         <span class="form-label">Clearance level</span>
-        <select
-          id="edit_clearance_level"
-          name="clearance_level"
-          class="form-input"
-          required
-        >
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
+        <select id="edit_clearance_level" class="form-input" required>
+          <option value="1">1</option><option value="2">2</option>
+          <option value="3">3</option><option value="4">4</option>
         </select>
       </label>
 
       <div class="modal-actions">
-        <button
-          id="editFileCancelBtn"
-          type="button"
-          class="btn btn-secondary"
-        >
-          Cancel
-        </button>
-
-        <button
-          id="editFileSubmitBtn"
-          type="submit"
-          class="btn btn-primary"
-        >
-          Save Changes
-        </button>
+        <button id="editFileCancelBtn" type="button" class="btn btn-secondary">Cancel</button>
+        <button id="editFileSubmitBtn" type="submit" class="btn btn-primary">Save Changes</button>
       </div>
     </form>
   </div>
@@ -738,6 +684,6 @@
   </div>
 </div>
 
-
+<script defer src="app.js"></script>
 </body>
 </html>
