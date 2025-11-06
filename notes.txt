@@ -10,3 +10,12 @@ keep a note of the new helper settings in the db.py - these will have to be chan
 -> tried to refactor the database and ended up breaking everything 
 -> rebased main to reflect the latest change from the settings branch - must delete that branch now since everything is updated 
 -> 
+
+6th November:
+This is this wonderful thing we can do called scheduling - if we know an item is needed at say 4 Pm - we can send a reminder / prepare a briefing in the morning 
+the briefing idea is lovely too - stock low? append it in the morning. Stock due for check out? Append it in the morning. 
+
+Later this can be hooked to an automated system which can automatically reposition items for check out based on past movements. 
+Past movements itself can give so much information when connected to a "users" db 
+- who checks out the most items. Who has the longest checkouts - who has the longest overdues - who checks out a particular item frequentlty, 
+- what items are certain items guarenteed to be checked out, etc. 

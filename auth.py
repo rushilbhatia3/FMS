@@ -1,199 +1,146 @@
-from contextlib import closing
-import hmac, hashlib, base64, json, time, bcrypt
-from fastapi import APIRouter, Request, Response
-from fastapi import HTTPException, status, Body, Depends
-from typing import Optional
-import db
+# auth.py
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr
-import sqlite3
+import os, time, json, hmac, hashlib, base64
+from typing import Optional, Dict, Any
+
+import bcrypt
+import db
+
+router = APIRouter(tags=["auth"])
+
+SESSION_COOKIE_NAME = "session"
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change-this-in-env")
+SESSION_TTL_SECONDS = 60 * 60 * 8  # 8 hours
 
 
-router = APIRouter()
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
 
-SESSION_COOKIE_NAME = "fms_session"
-SESSION_SECRET = b"super-secret-change-me"  # TODO env
-SESSION_TTL_SECONDS = 4 * 60 * 60  # 4 hours
 
-def _sign_data(raw: bytes) -> str:
-    sig = hmac.new(SESSION_SECRET, raw, hashlib.sha256).digest()
-    return base64.urlsafe_b64encode(sig).decode("utf-8")
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
-def _encode_session(payload: dict) -> str:
-    body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    body_b64   = base64.urlsafe_b64encode(body_bytes).decode("utf-8")
-    sig_b64    = _sign_data(body_bytes)
-    return f"{body_b64}.{sig_b64}"
 
-def _decode_session(token: str) -> Optional[dict]:
+def _b64url_decode(s: str) -> bytes:
+    pad = "=" * (-len(s) % 4)
+    return base64.urlsafe_b64decode(s + pad)
+
+
+def _sign(payload: Dict[str, Any]) -> str:
+    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    sig = hmac.new(SESSION_SECRET.encode("utf-8"), body, hashlib.sha256).digest()
+    return _b64url(body) + "." + _b64url(sig)
+
+
+def _verify(token: str) -> Optional[Dict[str, Any]]:
     try:
         body_b64, sig_b64 = token.split(".", 1)
-    except ValueError:
-        return None
-
-    try:
-        body_bytes = base64.urlsafe_b64decode(body_b64.encode("utf-8"))
+        body = _b64url_decode(body_b64)
+        sig = _b64url_decode(sig_b64)
+        exp_sig = hmac.new(SESSION_SECRET.encode("utf-8"), body, hashlib.sha256).digest()
+        if not hmac.compare_digest(sig, exp_sig):
+            return None
+        payload = json.loads(body.decode("utf-8"))
+        if int(payload.get("exp", 0)) < int(time.time()):
+            return None
+        return payload
     except Exception:
         return None
 
-    expected_sig = _sign_data(body_bytes)
-    if not hmac.compare_digest(sig_b64, expected_sig):
-        return None
 
-    try:
-        payload = json.loads(body_bytes.decode("utf-8"))
-    except Exception:
-        return None
-
-    exp = payload.get("exp")
-    if not isinstance(exp, (int, float)):
-        return None
-    if int(time.time()) > exp:
-        return None
-
-    return payload
-
-def _set_session_cookie(response: Response, email: str, role: str):
-    now_ts = int(time.time())
+def _set_session_cookie(resp: Response, user_row) -> None:
+    now = int(time.time())
     payload = {
-        "email": email,
-        "role": role,
-        "exp": now_ts + SESSION_TTL_SECONDS,
+        "sub": int(user_row["id"]),
+        "email": user_row["email"],
+        "role": user_row["role"],
+        "maxCL": user_row["max_clearance_level"],
+        "exp": now + SESSION_TTL_SECONDS,
+        "iat": now,
     }
-    token = _encode_session(payload)
-
-    response.set_cookie(
+    token = _sign(payload)
+    # HttpOnly cookie; set secure flag according to environment needs
+    resp.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=False,      # True if HTTPS only
         samesite="lax",
+        secure=False,  # set True when using HTTPS
         max_age=SESSION_TTL_SECONDS,
         path="/",
     )
 
-def _clear_session_cookie(response: Response):
-    response.delete_cookie(
-        key=SESSION_COOKIE_NAME,
-        path="/"
-    )
 
-def get_current_user(request: Request) -> Optional[dict]:
+def _clear_session_cookie(resp: Response) -> None:
+    resp.delete_cookie(SESSION_COOKIE_NAME, path="/")
+
+
+def get_current_user(request: Request) -> Dict[str, Any]:
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token:
-        return None
-
-    data = _decode_session(token)
-    if not data:
-        return None
-
-    # { "email": ..., "role": ... }
-    return {"email": data.get("email"), "role": data.get("role")}
-
-def require_admin(user: Optional[dict] = Depends(get_current_user)):
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated."
-        )
-    # allow admin OR admin (adjust if you truly want admin-only)
-    if user.get("role") not in ("admin", "admin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="admin role required."
-        )
-
-
-@router.post("/api/session/login")
-def login(
-    response: Response,
-    email: str = Body(...),
-    password: str = Body(...),
-):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    payload = _verify(token)
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+    # Optionally re-load user to ensure still exists and role not changed to disabled
     rows = db.db_read(
-        """
-        SELECT id, email, role, password_hash, active
-        FROM users
-        WHERE email = ?
-        LIMIT 1
-        """,
-        (email.strip().lower(),)
+        "SELECT id, email, name, role, max_clearance_level FROM users WHERE id = ?",
+        (payload["sub"],),
     )
     if not rows:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    row = rows[0]
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "name": row["name"],
+        "role": row["role"],
+        "max_clearance_level": row["max_clearance_level"],
+    }
 
-    u = dict(rows[0])
 
-    if u["active"] != 1:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled.")
-
-    # bcrypt verify
-    if not bcrypt.checkpw(password.encode("utf-8"), u["password_hash"].encode("utf-8")):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
-
-    # issue cookie
-    _set_session_cookie(
-        response,
-        email=u["email"],  
-        role=u["role"],
-    )
-
-    return {"email": u["email"], "role": u["role"]}
-
-@router.get("/api/session/me")
-def session_me(request: Request):
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated."
-        )
+def require_admin(user=Depends(get_current_user)) -> Dict[str, Any]:
+    if user["role"] != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin required")
     return user
 
-@router.post("/api/session/logout")
-def logout(response: Response):
-    _clear_session_cookie(response)
-    return {"status": "logged_out"}
 
-class NewUser(BaseModel):
-    email: EmailStr
-    password: str
-    role: str 
-    
-@router.get("/users")
-def list_users(user=Depends(require_admin)):
-    from db import get_conn
-    with closing(get_conn()) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT email, role, created_at FROM users ORDER BY created_at DESC").fetchall()
-        return [dict(r) for r in rows]
-
-@router.post("/users", status_code=201)
-def create_user(payload: NewUser = Body(...)):
-    email_norm = payload.email.strip().lower()      # 👈 normalize once
-    role = payload.role.strip().lower()
-
-    if role not in ("admin", "user"):
-        raise HTTPException(status_code=400, detail="role must be 'admin' or 'user'")
-
-    pw = payload.password.strip()
-    if len(pw) < 8:
-        raise HTTPException(status_code=400, detail="password too short (min 8 chars)")
-
-    pw_hash = bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    print(f"Creating user: {email_norm} with role: {role} and password hash: {pw_hash}")
-    from db import get_conn
+@router.post("/session/login")
+def login(payload: LoginIn, response: Response):
+    rows = db.db_read(
+        "SELECT id, email, name, role, password_hash, max_clearance_level FROM users WHERE email = ?",
+        (payload.email.lower(),),
+    )
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    row = rows[0]
+    pw_ok = False
     try:
-        with closing(get_conn()) as conn, conn:
-            # Optional preflight to return a clearer message before hitting UNIQUE
-            exists = conn.execute("SELECT 1 FROM users WHERE email = ?", (email_norm,)).fetchone()
-            if exists:
-                raise HTTPException(status_code=409, detail=f"email already exists: {email_norm}")
+        pw_ok = bcrypt.checkpw(payload.password.encode("utf-8"), row["password_hash"].encode("utf-8"))
+    except Exception:
+        # legacy hashes or corrupted data
+        pw_ok = False
+    if not pw_ok:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-            conn.execute("""
-                INSERT INTO users (email, password_hash, role)
-                VALUES (?, ?, ?)
-            """, (email_norm, pw_hash, role))
-        return {"ok": True}
-    except sqlite3.IntegrityError:
-        # Fallback if preflight missed something (e.g., NOCASE index)
-        raise HTTPException(status_code=409, detail=f"email already exists: {email_norm}")
+    _set_session_cookie(response, row)
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "name": row["name"],
+        "role": row["role"],
+        "max_clearance_level": row["max_clearance_level"],
+    }
+
+
+@router.post("/session/logout", status_code=204)
+def logout(response: Response, _user=Depends(get_current_user)):
+    _clear_session_cookie(response)
+    return Response(status_code=204)
+
+
+@router.get("/session/me")
+def me(user=Depends(get_current_user)):
+    return user

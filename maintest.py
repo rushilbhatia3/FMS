@@ -5,12 +5,12 @@ from fastapi import FastAPI, HTTPException, Request, Response, status, Path, Bod
 import sqlite3, io, openpyxl
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, StreamingResponse
-from maintenance import router as maintenance_router
+#from maintenance import router as maintenance_router
 from auth import router as auth_router
 from db import db_read, db_write
 from settings import router as settings_router
 from items import router as items_router
-from movement import router as movements_router
+#from movement import router as movements_router
 
 from auth import (
     get_current_user,
@@ -1271,9 +1271,9 @@ def root():
     return RedirectResponse(url="app/homepage.html")
 
 
-app.include_router(movements_router)
+#app.include_router(movements_router)
 app.include_router(items_router)
-app.include_router(maintenance_router)
+#app.include_router(maintenance_router)
 app.include_router(auth_router)
 app.include_router(settings_router)
 

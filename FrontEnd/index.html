@@ -1,689 +1,210 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="favicon.png">
-    <title>File Management System</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warehouse Management System</title>
+  <link rel="stylesheet" href="./style.css" />
 
-    <!--script defer src="functionality.js"></script -->
-
+  <!-- Day.js for timestamp formatting -->
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+  <script>
+    dayjs.extend(window.dayjs_plugin_relativeTime);
+  </script>
 </head>
+
 <body>
-<div class="app-header">
-  <div class="app-header-left">
-    <div class="product-title">
-      <span class="product-name">FMS</span>
-      <span class="product-sub">File Management System</span>
+  <!-- Header -->
+  <header class="app-header">
+    <h1>Warehouse Management System</h1>
+    <div class="user-bar">
+      <span id="roleBadge"></span>
+      <button id="logoutBtn" hidden>Logout</button>
     </div>
-  </div>
+  </header>
 
+  <!-- Login Section -->
+  <section id="loginSection">
+    <form id="loginForm" class="auth-form">
+      <h2>Sign In</h2>
+      <input id="loginEmail" type="email" placeholder="Email" required />
+      <input id="loginPassword" type="password" placeholder="Password" required />
+      <button type="submit">Login</button>
+    </form>
+  </section>
 
-
-  <div class="app-header-right">
-
- <div class="search-wrapper">
-      <input
-        id="searchBox"
-        class="search-input"
-        type="text"
-        placeholder="Search files or holders…"
-      />
+  <!-- Main App Section -->
+  <section id="appSection" hidden>
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Search items..." />
+      <select id="status">
+        <option value="">All</option>
+        <option value="available">Available</option>
+        <option value="checked_out">Checked Out</option>
+      </select>
+      <select id="system"></select>
+      <select id="shelf"></select>
+      <input id="holder" type="text" placeholder="Holder" />
+      <label><input id="include_deleted" type="checkbox" /> Show deleted</label>
+      <select id="page_size">
+        <option>50</option><option>100</option><option>200</option>
+      </select>
+      <button id="refreshBtn" type="button">Refresh</button>
     </div>
 
-
-    <label class="checkbox-label">
-      <input type="checkbox" id="showDeleted" />
-      Show deleted
-    </label>
-
-    <select id="statusFilter" class="small-select">
-      <option value="">All</option>
-      <option value="available">Available only</option>
-      <option value="out">Out only</option>
-    </select>
-
-
-    <button id="exportOpenBtn" class="btn btn-secondary btn-compact">
-      Export
-    </button>
-
-    <button id="openAddFileBtn" class="btn btn-primary btn-compact">
-      Add File
-    </button>
-    <div class="session-user-shell">
-      <span id="sessionUserInfo" class="session-user-info"></span>
-      <button id="logoutBtn" class="btn btn-ghost-small" type="button">Log out</button>
-      <a id="settingsLink" class="btn btn-secondary btn-compact" href="settings.html" style="display:none;">Settings</a>
-    </div>
-  </div>
-</div>
-
-<main class="app-main">
-    <!-- Table list -->
+    <!-- Items Table -->
     <div class="table-scroll-region">
-      <table id="fileTable" class="file-table">
+      <table id="itemsTable" class="file-table">
         <thead class="file-table-head">
           <tr>
-            <th class="sortable col-name" data-sort="name">Name <span class="sort-indicator"></span></th>
-            <th class="sortable" data-sort="location">Location<span class="sort-indicator"></span></th>
-            <th class="sortable col-actions" data-sort="clearance_level">Clearance<span class="sort-indicator"></span></th>
-            <th>Status</th>
-            <th class="col-note">Added By</th>
-            <th class="sortable" data-sort="created_at">Date Added<span class="sort-indicator"></span></th>
-            <th>Held By</th>
-            <th>Checkout</th>
-            <th class="sortable" data-sort="last_movement_ts">Last Seen<span class="sort-indicator"></span></th>
-            <th>Tag</th>
-            <th class="col-note">Note</th>
-            <th class="col-actions">Actions</th>
-            <th class="cell-move">Checkout</th>
-            <th class="cell-edit">Edit</th>
+            <th data-sort="name">Name</th>
+            <th data-sort="sku">SKU</th>
+            <th data-sort="system_code">System</th>
+            <th data-sort="shelf_label">Shelf</th>
+            <th data-sort="quantity_on_hand">Qty</th>
+            <th data-sort="last_movement_ts">Last Activity</th>
+            <th data-sort="clearance_level">CL</th>
+            <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- rows injected by JS -->
-        </tbody>
+        <tbody id="itemsTbody"></tbody>
       </table>
     </div>
 
-    
-
-    <!-- Table Footer -->
-    <div id="tableFooter" class="table-footer">
-      <div class="table-footer-inner">
-        <span id="footerActiveCount"></span>
-        <span class="footer-separator">•</span>
-        <span id="footerArchivedCount"></span>
-        <span class="footer-separator">•</span>
-        <span id="footerTotalCount"></span>
-
-        <div id="pagerBar" class="pager-bar">
-    <button id="prevPageBtn" class="table-btn" type="button">Prev</button>
-
-    <span id="pagerStatus" class="pager-status">
-      Page 1 of 1
-    </span>
-
-    <button id="nextPageBtn" class="table-btn" type="button">Next</button>
-  </div>
-      </div>
+    <!-- Pagination -->
+    <div class="pager">
+      <button id="prevPage">&larr; Prev</button>
+      <span id="pagerStatus"></span>
+      <button id="nextPage">Next &rarr;</button>
     </div>
-  </main>
+  </section>
 
-<!-- Checkout / Checkin Modal -->
-<div id="checkoutModal" class="modal">
-  <div class="modal-content">
-    <h3 id="modalTitle" class="modal-title">
-      Action
-    </h3>
-
-    <div id="holderField" class="form-section">
-      <label class="form-label">
-        Holder name
-      </label>
-      <input
-        type="text"
-        id="modal_holder_name"
-        class="form-input"
-        placeholder="Who is taking the file?"
-      />
+  <!-- Item Drawer -->
+  <dialog id="itemDrawer">
+    <div id="itemDetail"></div>
+    <div class="drawer-actions">
+      <button id="itemDeleteBtn" data-requires-role="admin">Delete</button>
+      <button id="itemRestoreBtn" data-requires-role="admin">Restore</button>
+      <button id="openMovementModal">Record Movement</button>
+      <button id="closeItemDrawer" type="button">Close</button>
     </div>
+  </dialog>
 
-    <!-- Quantity -->
-    <label class="form-field">
-      <span class="form-label">Quantity</span>
-      <div class="qty-wrap">
-        <button type="button" class="qty-btn" id="qtyDec">−</button>
-        <input type="number" id="movement_qty" class="form-input"
-              inputmode="numeric" min="1" step="1" value="1" />
-        <button type="button" class="qty-btn" id="qtyInc">+</button>
-      </div>
-      <div id="qtyHint" class="form-hint"></div>
-    </label>
+  <!-- Movement Modal -->
+  <dialog id="movementModal">
+    <nav class="tabs">
+      <button data-kind="receive">Receive</button>
+      <button data-kind="issue">Issue</button>
+      <button data-kind="return">Return</button>
+      <button data-kind="adjust" data-requires-role="admin">Adjust</button>
+      <button data-kind="transfer">Transfer</button>
+    </nav>
 
-    <div class="form-section">
-      <label class="form-label">
-        Note (optional)
-      </label>
-      <textarea
-        id="modal_note"
-        class="form-input textarea-input"
-        placeholder="Any notes about this movement"
-      ></textarea>
-    </div>
+    <div class="modal-body">
+      <form id="mvReceive" data-kind="receive" hidden>
+        <h3>Receive</h3>
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
+        <input name="note" placeholder="Note" />
+        <button type="submit">Submit</button>
+      </form>
 
-   <div class="modal-actions">
-      <button id="modalCancelBtn" type="button" class="btn btn-quiet">
-        Cancel
-      </button>
+      <form id="mvIssue" data-kind="issue" hidden>
+        <h3>Issue</h3>
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
+        <input name="holder" placeholder="Holder" required />
+        <input name="due_at" type="datetime-local" />
+        <input name="note" placeholder="Note" />
+        <button type="submit">Submit</button>
+      </form>
 
-      <button id="modalConfirmBtn" class="btn btn-action">
-        Confirm
-      </button>
-    </div>
-  </div>
-</div>
+      <form id="mvReturn" data-kind="return" hidden>
+        <h3>Return</h3>
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
+        <input name="holder" placeholder="Holder" />
+        <input name="note" placeholder="Note" />
+        <button type="submit">Submit</button>
+      </form>
 
-<!-- File Details Modal -->
-<div id="detailsModal" class="modal modal-details">
-  <div class="modal-content">
-    <h3 id="detailsTitle" class="modal-title">
-      File Details
-    </h3>
+      <form id="mvAdjust" data-kind="adjust" hidden>
+        <h3>Adjust (Admin)</h3>
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty_delta" type="number" placeholder="Delta Quantity" required />
+        <input name="note" placeholder="Reason" required />
+        <button type="submit">Submit</button>
+      </form>
 
-    <div class="details-body">
-  <div class="details-meta">
-
-    <div class="detail-row">
-      <div class="detail-label">ID:</div>
-      <div class="detail-value" id="details_id"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Name:</div>
-      <div class="detail-value" id="details_name"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Size:</div>
-      <div class="detail-value" id="details_size"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Type:</div>
-      <div class="detail-value" id="details_type"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Tag:</div>
-      <div class="detail-value" id="details_tag"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Note:</div>
-      <div class="detail-value" id="details_note"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Location:</div>
-      <div class="detail-value" id="details_loc"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Clearance:</div>
-      <div class="detail-value" id="details_clearance"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Added By:</div>
-      <div class="detail-value" id="details_added_by"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Created At:</div>
-      <div class="detail-value" id="details_created"></div>
-    </div>
-  </div>
-
-  <div class="details-status-block">
-    <div class="detail-row">
-      <div class="detail-label">Currently Held By:</div>
-      <div class="detail-value" id="details_holder"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Checked Out At:</div>
-      <div class="detail-value" id="details_checkout_at"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Previous Checkout:</div>
-      <div class="detail-value" id="details_prev_checkout"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Last Modified:</div>
-      <div class="detail-value" id="details_modified"></div>
-    </div>
-
-    <div class="detail-row">
-      <div class="detail-label">Status:</div>
-      <div class="detail-value" id="details_status"></div>
-    </div>
-  </div>
-</div>
-
-<div class="details-history-section">
-  <div class="details-history-title">Last 10 Movements</div>
-
-  <div id="details_history" class="details-history-box">
-    <!-- JS will inject .history-entry blocks -->
-  </div>
-</div>
-
-
-
-    <div class="modal-actions">
-      <button
-        id="detailsCloseBtn"
-        class="btn btn-secondary"
-        type="button"
-      >
-        Close
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- Add File Modal -->
-<div id="addFileModal" class="modal modal-addfile">
-  <div class="modal-content">
-
-    <h3 class="modal-title">Add New File</h3>
-
-    <!-- Tab header -->
-    <div class="tab-header">
-      <button
-        id="tabManualBtn"
-        class="tab-btn tab-btn-active"
-        type="button"
-      >Manual Entry</button>
-
-      <button
-        id="tabImportBtn"
-        class="tab-btn"
-        type="button"
-      >Import CSV</button>
-    </div>
-
-    <!-- Manual entry panel -->
-    <div id="manualPanel" class="tab-panel tab-panel-active">
-      <form id="fileForm" class="form">
-        <!-- (your existing manual fields go here unchanged) -->
-
-        <!-- Name -->
-        <label class="form-field">
-          <span class="form-label">Name</span>
-          <input
-            type="text"
-            id="name"
-            name="name"
-            class="form-input"
-            placeholder="e.g., Contract ABC"
-            required
-          />
-        </label>
-
-        <!-- Size -->
-        <label class="form-field">
-          <span class="form-label">Size</span>
-          <input
-            type="text"
-            id="size_label"
-            name="size_label"
-            class="form-input"
-            placeholder="e.g., A4 folder / 500 pages"
-          />
-        </label>
-
-        <!-- Type -->
-        <label class="form-field">
-          <span class="form-label">Type</span>
-          <input
-            type="text"
-            id="type_label"
-            name="type_label"
-            class="form-input"
-            placeholder="e.g., contract, invoice, box"
-          />
-        </label>
-
-        <!-- Tag -->
-        <label class="form-field">
-          <span class="form-label">Tag</span>
-          <input
-            type="text"
-            id="tag"
-            name="tag"
-            class="form-input"
-            placeholder="e.g., finance, legal"
-          />
-        </label>
-
-        <!-- Note -->
-        <label class="form-field">
-          <span class="form-label">Note / instruction</span>
-          <input
-            id="note"
-            name="note"
-            class="form-input"
-            placeholder="Any handling or routing notes"
-          />
-        </label>
-
-        <!-- Dimensions (mm) -->
-        <fieldset class="fieldset-block">
-          <legend class="fieldset-legend">Dimensions (mm)</legend>
-          <label class="form-field">
-            <span class="form-label">Height</span>
-            <input type="number" id="height_mm" class="form-input" min="0" step="0.01" />
-          </label>
-          <label class="form-field">
-            <span class="form-label">Width</span>
-            <input type="number" id="width_mm" class="form-input" min="0" step="0.01" />
-          </label>
-          <label class="form-field">
-            <span class="form-label">Depth</span>
-            <input type="number" id="depth_mm" class="form-input" min="0" step="0.01" />
-          </label>
-        </fieldset>
-
-        <!-- Normalized location -->
-        <fieldset class="fieldset-block">
-          <legend class="fieldset-legend">Location (normalized)</legend>
-          <label class="form-field">
-            <span class="form-label">System</span>
-            <input type="text" id="loc_system" class="form-input" placeholder="S01" />
-          </label>
-          <label class="form-field">
-            <span class="form-label">Shelf</span>
-            <input type="text" id="loc_shelf" class="form-input" placeholder="A3" />
-          </label>
-        </fieldset>
-
-
-        <!-- Clearance -->
-        <label class="form-field">
-          <span class="form-label">Clearance level</span>
-          <select
-            id="clearance_level"
-            name="clearance_level"
-            class="form-input"
-            required
-          >
-            <option value="" disabled selected>Select level (1–4)</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-          </select>
-        </label>
-
-        <label class="form-field">
-          <span class="form-label">Added by</span>
-          <input
-            type="text"
-            id="added_by"
-            name="added_by"
-            class="form-input"
-            placeholder="Defaults to 'admin' if left empty"
-          />
-        </label>
-
-        <div class="modal-actions">
-          <button
-            id="addFileCancelBtn"
-            type="button"
-            class="btn btn-secondary"
-          >Cancel</button>
-
-          <button
-            id="addFileSubmitBtn"
-            type="submit"
-            class="btn btn-primary"
-          >Save File</button>
-        </div>
+      <form id="mvTransfer" data-kind="transfer" hidden>
+        <h3>Transfer</h3>
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="from_shelf_id" placeholder="From Shelf ID" required />
+        <input name="to_shelf_id" placeholder="To Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
+        <input name="note" placeholder="Note" />
+        <button type="submit">Submit</button>
       </form>
     </div>
 
-    <!-- CSV import panel -->
-    <div id="importPanel" class="tab-panel">
-      <div class="form">
-        <div class="form-field">
-          <span class="form-label">CSV File</span>
-          <input
-            type="file"
-            id="csvFileInput"
-            class="form-input"
-            accept=".csv, .xlsx"
-          />
-        </div>
+    <button id="closeMovementModal" type="button">Close</button>
+  </dialog>
 
-        <div class="import-hint">
-          The CSV should have columns:<br />
-          <code>name, size_label, type_label, tag, note, system_number, shelf, clearance_level, added_by</code>
-        </div>
+  <!-- Admin Section -->
+  <section id="adminSection" hidden>
+    <h2>Admin Dashboard</h2>
 
-        <div class="modal-actions">
-          <button id="importCancelBtn" type="button" class="btn btn-quiet">
-            Cancel
-          </button>
-
-          <button id="csvImportBtn" type="button" class="btn btn-action">
-            Save File
-          </button>
-        </div>
-
-        <div id="csvImportStatus" class="import-status"></div>
-      </div>
+    <div class="admin-block">
+      <h3>Systems</h3>
+      <form id="systemForm" data-requires-role="admin">
+        <input name="id" type="hidden" />
+        <input name="code" placeholder="Code" required />
+        <input name="notes" placeholder="Notes" />
+        <button type="submit">Save</button>
+      </form>
+      <table><tbody id="systemsTable"></tbody></table>
     </div>
 
-  </div>
-</div>
+    <div class="admin-block">
+      <h3>Shelves</h3>
+      <form id="shelfForm" data-requires-role="admin">
+        <input name="id" type="hidden" />
+        <input name="system_id" placeholder="System ID" required />
+        <input name="label" placeholder="Label" required />
+        <input name="length_mm" placeholder="Length (mm)" required />
+        <input name="width_mm" placeholder="Width (mm)" required />
+        <input name="height_mm" placeholder="Height (mm)" required />
+        <input name="ordinal" type="number" placeholder="Ordinal" />
+        <button type="submit">Save</button>
+      </form>
+      <table><tbody id="shelvesTable"></tbody></table>
+    </div>
 
-<!-- Edit File Modal -->
-<div id="editFileModal" class="modal modal-editfile">
-  <div class="modal-content">
-    <h3 class="modal-title">Edit Item</h3>
-
-    <form id="editFileForm" class="form">
-      <label class="form-field">
-        <span class="form-label">Name</span>
-        <input type="text" id="edit_name" class="form-input" required />
-      </label>
-
-      <label class="form-field">
-        <span class="form-label">Size</span>
-        <input type="text" id="edit_size_label" class="form-input" />
-      </label>
-
-      <label class="form-field">
-        <span class="form-label">Type</span>
-        <input type="text" id="edit_type_label" class="form-input" />
-      </label>
-
-      <label class="form-field">
-        <span class="form-label">Tag</span>
-        <input type="text" id="edit_tag" class="form-input" />
-      </label>
-
-      <label class="form-field">
-        <span class="form-label">Note / instruction</span>
-        <input id="edit_note" class="form-input" />
-      </label>
-
-      <fieldset class="fieldset-block">
-        <legend class="fieldset-legend">Location</legend>
-        <label class="form-field">
-          <span class="form-label">System number</span>
-          <input type="text" id="edit_system_number" class="form-input" />
-        </label>
-        <label class="form-field">
-          <span class="form-label">Shelf</span>
-          <input type="text" id="edit_shelf" class="form-input" />
-        </label>
-      </fieldset>
-
-      <label class="form-field">
-        <span class="form-label">Clearance level</span>
-        <select id="edit_clearance_level" class="form-input" required>
-          <option value="1">1</option><option value="2">2</option>
-          <option value="3">3</option><option value="4">4</option>
+    <div class="admin-block">
+      <h3>Users</h3>
+      <form id="userForm" data-requires-role="admin">
+        <input name="email" type="email" placeholder="Email" required />
+        <input name="name" placeholder="Name" required />
+        <select name="role" required>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
         </select>
-      </label>
-
-      <div class="modal-actions">
-        <button id="editFileCancelBtn" type="button" class="btn btn-secondary">Cancel</button>
-        <button id="editFileSubmitBtn" type="submit" class="btn btn-primary">Save Changes</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Export Data Modal -->
-<div id="exportModal" class="modal">
-  <div class="modal-content" style="min-width:280px; max-width:320px;">
-    <h3 class="modal-title">Export Data</h3>
-
-    <div class="form-section" style="font-size:0.9rem; line-height:1.4;">
-      <label style="display:flex; align-items:flex-start; gap:0.5rem; margin-bottom:0.5rem; cursor:pointer;">
-        <input type="radio" name="exportType" value="files">
-        <div>
-          <div><strong>Files only</strong></div>
-          <div style="color:#555; font-size:0.8rem;">Catalog, locations, clearance</div>
-        </div>
-      </label>
-
-      <label style="display:flex; align-items:flex-start; gap:0.5rem; margin-bottom:0.5rem; cursor:pointer;">
-        <input type="radio" name="exportType" value="checkouts">
-        <div>
-          <div><strong>Checkouts only</strong></div>
-          <div style="color:#555; font-size:0.8rem;">Who had what, when</div>
-        </div>
-      </label>
-
-      <label style="display:flex; align-items:flex-start; gap:0.5rem; cursor:pointer;">
-        <input type="radio" name="exportType" value="all" checked>
-        <div>
-          <div><strong>Everything (ZIP)</strong></div>
-          <div style="color:#555; font-size:0.8rem;">Files + full movement log</div>
-        </div>
-      </label>
-    </div>
-
-    <div class="modal-actions">
-      <button id="exportCancelBtn" class="btn btn-secondary" type="button">
-        Cancel
-      </button>
-
-      <button id="exportConfirmBtn" class="btn btn-primary" type="button">
-        Download
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- login / logout modal -->
- <div id="sessionModal" class="session-modal">
-  <div class="session-card">
-    <div class="session-card-header">
-      <h2 class="session-card-title">File Access</h2>
-      <p class="session-card-desc">Choose your role and sign in.</p>
-    </div>
-
-    <!-- Role tabs -->
-    <div class="session-tabs">
-      <button id="sessionTabadmin" class="session-tab session-tab-active" type="button">
-        admin
-      </button>
-      <button id="sessionTabViewer" class="session-tab" type="button">
-        User
-      </button>
-      
-    </div>
-
-    <!-- admin panel -->
-    <div id="sessionPaneladmin" class="session-panel session-panel-active">
-      <form id="sessionadminForm" class="session-form" autocomplete="off">
-        <label class="session-field">
-          <span class="session-label">Email</span>
-          <input
-            type="email"
-            id="opEmail"
-            class="session-input"
-            placeholder="admin@example.com"
-            required
-          />
-        </label>
-
-        <label class="session-field">
-          <span class="session-label">Password</span>
-          <input
-            type="password"
-            id="opPassword"
-            class="session-input"
-            placeholder="••••••••"
-            required
-          />
-        </label>
-
-        <div id="opError" class="session-error" role="alert"></div>
-
-        <div class="session-actions">
-          <button
-            id="opSignInBtn"
-            type="submit"
-            class="btn btn-primary wide-btn"
-          >
-            Sign in as admin
-          </button>
-        </div>
-        
+        <input name="password" type="password" placeholder="Password" required />
+        <input name="max_clearance_level" type="number" placeholder="Max CL (optional)" />
+        <button type="submit">Add User</button>
       </form>
+      <table><tbody id="usersTable"></tbody></table>
     </div>
+  </section>
 
-    <!-- Viewer panel -->
-    <div id="sessionPanelViewer" class="session-panel">
-      <form id="sessionViewerForm" class="session-form" autocomplete="off">
-        <label class="session-field">
-          <span class="session-label">Email</span>
-          <input
-            type="email"
-            id="viewerEmail"
-            class="session-input"
-            placeholder="viewer@example.com"
-            required
-          />
-        </label>
-
-        <label class="session-field">
-          <span class="session-label">Password</span>
-          <input
-            type="password"
-            id="viewerPassword"
-            class="session-input"
-            placeholder="••••••••"
-            required
-          />
-        </label>
-
-        <div id="viewerError" class="session-error" role="alert"></div>
-
-        <div class="session-actions">
-          <button
-            id="viewerSignInBtn"
-            type="submit"
-            class="btn btn-primary wide-btn"
-          >
-            Sign in as Viewer
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <div class="guest-login-row">
-        <button id="guestBtn" class="btn btn-primary wide-btn">
-          Continue as Guest (read-only)
-        </button>
-      </div>
-    <div class="session-hint">
-      Access is logged. admin mode can move, edit, and archive files.
-    </div>
-  </div>
-</div>
-
-<script defer src="app.js"></script>
+  <!-- Scripts -->
+  <script defer type="module" src="./app.js"></script>
+  <script defer type="module" src="./admin.js"></script>
 </body>
 </html>
