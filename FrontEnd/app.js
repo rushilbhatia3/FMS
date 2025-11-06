@@ -16,7 +16,7 @@ let APP_SETTINGS = null;
 async function loadAppSettings() {
   try {
     const r = await fetch('/api/settings', { credentials: 'include' });
-    if (!r.ok) return; // silently ignore if not admin
+    if (!r.ok) return; //ignore if not admin
     APP_SETTINGS = await r.json();
   } catch {}
 }
@@ -29,13 +29,13 @@ if (guestBtn) {
   guestBtn.addEventListener('click', async (e) => {
     e.preventDefault();
 
-    // Guest mode is explicitly "not logged in".
-    // We do NOT call /api/session/login.
-    // We just set currentUser locally and apply role.
+    //guest mode is explicitly "not logged in".
+    //do NOT call /api/session/login.
+    //just set currentUser locally and apply role.
     currentUser = { role: "guest" };
 
     applyRoleUI();
-    updateHeaderUserInfo();  // will show "Guest (read-only)" if you added that text
+    updateHeaderUserInfo();  //should show "Guest (read-only)"
     hideSessionModal();
     await loadFiles();
   });
@@ -151,8 +151,8 @@ opFormEl.addEventListener('submit', async (e) => {
       return;
     }
 
-    // success
-    await fetchSession();         // sets currentUser + applyRoleUI()
+    //success message
+    await fetchSession();         //sets currentUser + applyRoleUI()
     updateHeaderUserInfo();
     hideSessionModal();
     await loadFiles();
@@ -162,7 +162,7 @@ opFormEl.addEventListener('submit', async (e) => {
   }
 });
 
-// login submit (viewer)
+//login submit (viewer)
 viewerFormEl.addEventListener('submit', async (e) => {
   e.preventDefault();
   viewerErrorEl.textContent = "";
@@ -184,7 +184,7 @@ viewerFormEl.addEventListener('submit', async (e) => {
       return;
     }
 
-    // success
+    //success
     await fetchSession();
     updateHeaderUserInfo();
     hideSessionModal();
@@ -195,7 +195,7 @@ viewerFormEl.addEventListener('submit', async (e) => {
   }
 });
 
-// logout
+//on logout
 if (logoutBtn) {
   logoutBtn.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -205,9 +205,9 @@ if (logoutBtn) {
         credentials: 'include'
       });
     } catch (_) {
-      // ignore
+      //ignore
     }
-    // Redirect to the public landing/sign-in
+    //redirect to the landing/sign-in
     window.location.replace('homepage.html#signin');
   });
 }
@@ -241,7 +241,7 @@ async function fetchSession() {
   }
 }
 
-// this controls what a viewer can/can't do in the UI
+//this controls what a viewer can/can't do in the UI
 function applyRoleUI() {
   const role = currentUser?.role || "guest";
   const isadmin = role === "admin";
@@ -257,13 +257,13 @@ function applyRoleUI() {
     } else {
       // viewer + guest can’t open this modal
       openAddFileBtn.disabled = true;
-      openAddFileBtn.style.opacity = "0.5";
+      openAddFileBtn.style.opacity = "0.3";
       openAddFileBtn.style.pointerEvents = "none";
     }
   }
 
-  // If you have "Import" tab / CSV upload stuff in that same modal,
-  // you can hide the tab for non-admins:
+ 
+  //you can hide tab for non-admins:
   if (tabImportBtn) {
     tabImportBtn.style.display = isadmin ? "" : "none";
   }
@@ -277,15 +277,15 @@ function applyRoleUI() {
     } else {
       showDeletedEl.checked = false;
       showDeletedEl.disabled = true;
-      showDeletedEl.style.opacity = "0.5";
+      showDeletedEl.style.opacity = "0.3";
       showDeletedEl.style.pointerEvents = "none";
     }
   }
 
   // --- Export button/modal ---
-  // Behavior you asked for:
+  // Behavior:
   // - guest: no export at all (hide button)
-  // - viewer: can open export but ONLY "files" option should be selectable
+  // - viewer: can export but ONLY "files" option selectable
   // - admin: full export menu
 
   if (exportOpenBtn) {
@@ -296,9 +296,6 @@ function applyRoleUI() {
     }
   }
 
-  // We'll also restrict the export modal's radio buttons when it opens.
-  // We'll handle that below in openExportModal().
-
   // --- Logout button visibility ---
   if (logoutBtn) {
     if (isGuest) {
@@ -308,18 +305,13 @@ function applyRoleUI() {
       logoutBtn.style.display = "";
     }
   }
-
-  // --- Header user text ---
-  // your updateHeaderUserInfo() already handles this using currentUser,
-  // but if you want guest to say "Guest (read-only)" you can tweak:
+  // --- Header user info ---
   if (isGuest) {
     sessionUserInfoEl.textContent = "Guest (read-only)";
   }
 
   if (settingsLink) settingsLink.style.display = isadmin ? "" : "none";
 }
-
-
 
 //end auth
 
@@ -593,7 +585,7 @@ form.addEventListener('submit', async (e) => {
 
 function updatePagerUI(page, pageSize, total) {
   // total pages:
-  // we do math carefully: maxPage = ceil(total / pageSize), but guard 0
+  // maxPage = ceil(total / pageSize), but guard 0
   const safePageSize = pageSize > 0 ? pageSize : 1;
   const maxPage = Math.max(1, Math.ceil(total / safePageSize));
 
@@ -805,8 +797,7 @@ function openEditModal(id) {
     console.error('openEditModal: item not in fileCache', id, fileCache);
     return;
   }
-  editingFileId = id; // <- required by your submit handler
-  // populate fields (adjust IDs to yours)
+  editingFileId = id; // <- required by submit handler
   editNameEl.value      = f.name || '';
   editSizeEl.value      = f.size_label || '';
   editTypeEl.value      = f.type_label || '';
@@ -819,7 +810,6 @@ function openEditModal(id) {
   showModal(editModalEl);  // or editModalEl.classList.add('is-open')
 }
 window.openEditModal = openEditModal;
-
 
 
 function openOutboundModal(id){ moveMode='out'; moveItemId=id; openQtyModal("Outbound"); }
@@ -836,8 +826,6 @@ async function confirmMovement(){
   if (!res.ok) return alert("Movement failed: " + await res.text());
   closeQtyModal(); await loadFiles();
 }
-
-
 
 // toDo
 function openCheckoutModal(fileId) {
@@ -858,7 +846,7 @@ function openReturnModal(fileId) {
   modalFileId = fileId;
 
   modalTitleEl.textContent = "Return File";
-  holderFieldEl.style.display = "none"; // you don't choose a new holder on return
+  holderFieldEl.style.display = "none"; // don't choose a new holder on return
 
   modalHolderInput.value = "";
   modalNoteInput.value = "";
@@ -941,8 +929,6 @@ async function openItemDetails(itemId) {
       return;
     }
     const f = await res.json();
-
-    // 2) (optional) fetch recent movements, ignore if 404/not implemented
     let history = [];
     try {
       const h = await fetch(`/api/movements?item_id=${itemId}`, { credentials:'include' });
@@ -1015,9 +1001,6 @@ async function openItemDetails(itemId) {
     alert("Error fetching details: " + err.message);
   }
 }
-
-
-
 
 let editingFileId = null;
 
@@ -1375,12 +1358,9 @@ document.querySelectorAll('th.sortable').forEach(th => {
   try {
     const pageSizePref = localStorage.getItem('FMS_PREF_PAGE_SIZE');
     if (pageSizePref) {
-      // If you want PAGE_SIZE to be dynamic, turn const into let at top
       if (typeof PAGE_SIZE !== "undefined") {
-        // Replace only if numeric and sane
         const n = parseInt(pageSizePref, 10);
         if (Number.isFinite(n) && n > 0 && n <= 500) {
-          // You declared PAGE_SIZE as const; change it to let to allow this:
           window.PAGE_SIZE = n;
         }
       }
@@ -1423,7 +1403,7 @@ function readDefaultShowDeleted() {
   updateSortIndicators();
 })();
 
-// Deep-link helpers for home.html
+//helpers for home.html
 (function handleDeepLink() {
   const hash = (window.location.hash || "").toLowerCase();
   if (hash === "#guest") {
