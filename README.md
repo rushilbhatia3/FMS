@@ -9,4 +9,7 @@ This repo is a documentation of my current work.
   Current working branch - new-internal-system
 </p>
 <span> Reason for new branch - creating a system that is more robust and aligned with the long term vision of the project</span>
-Please note that the current working directory will most likely break the build - use at your own risk!
+<p>
+  Please note that the new branches will most likely break the build - use at your own risk!
+</p>
+
