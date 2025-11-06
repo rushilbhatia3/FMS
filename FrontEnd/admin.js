@@ -1,5 +1,5 @@
 // admin.js
-import { core } from "core.js";
+import { core } from "./core.js";
 
 const Admin = (() => {
   const el = {
