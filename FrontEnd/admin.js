@@ -1,4 +1,3 @@
-// admin.js
 import { core } from "./core.js";
 
 const Admin = (() => {

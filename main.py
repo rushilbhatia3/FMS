@@ -6,7 +6,7 @@ import pathlib
 
 import db
 
-# Routers (must implement .router inside each)
+#Routers
 from auth import router as auth_router
 from users import router as users_router
 from systems import router as systems_router
@@ -46,7 +46,6 @@ def create_app() -> FastAPI:
     # ---------- Static frontend ----------
     frontend_dir = (pathlib.Path(__file__).parent / "Frontend").resolve()
 
-    # Serve all files in Frontend/ at the site root (/, /app.js, /admin.js, etc.)
     # Place AFTER API includes so /api/* keeps working.
     app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 

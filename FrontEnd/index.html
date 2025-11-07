@@ -2,9 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
   <title>Warehouse Management System</title>
+
+  <!-- App styles -->
   <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./settings.css" />
+
+  <link rel="icon" href="./favicon.png" type="image/png" />
+  <meta name="theme-color" content="#ffffff" />
 
   <!-- Day.js for timestamp formatting -->
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
@@ -16,57 +25,79 @@
 
 <body>
   <!-- Header -->
-  <header class="app-header">
+  <header class="app-header" role="banner">
     <h1>Warehouse Management System</h1>
-    <div class="user-bar">
-      <span id="roleBadge"></span>
-      <button id="logoutBtn" hidden>Logout</button>
+    <div class="user-bar" aria-live="polite">
+      <span id="roleBadge" title="Current role"></span>
+      <button id="logoutBtn" hidden type="button">Logout</button>
     </div>
   </header>
 
-  <!-- Login Section -->
-  <section id="loginSection">
-    <form id="loginForm" class="auth-form">
-      <h2>Sign In</h2>
-      <input id="loginEmail" type="email" placeholder="Email" required />
-      <input id="loginPassword" type="password" placeholder="Password" required />
+  <!-- Login Section (default visible) -->
+  <section id="loginSection" aria-labelledby="loginHeading">
+    <form id="loginForm" class="auth-form" novalidate>
+      <h2 id="loginHeading">Sign In</h2>
+      <label class="sr-only" for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" placeholder="Email" autocomplete="username" required />
+      <label class="sr-only" for="loginPassword">Password</label>
+      <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required />
       <button type="submit">Login</button>
     </form>
   </section>
 
-  <!-- Main App Section -->
-  <section id="appSection" hidden>
+  <!-- Main App Section (hidden until session) -->
+  <section id="appSection" hidden aria-labelledby="inventoryHeading">
+    <h2 id="inventoryHeading" class="sr-only">Inventory</h2>
+
     <!-- Toolbar -->
-    <div class="toolbar">
+    <div class="toolbar" role="group" aria-label="Filters">
+      <label class="sr-only" for="q">Search</label>
       <input id="q" type="search" placeholder="Search items..." />
-      <select id="status">
+
+      <label class="sr-only" for="status">Status</label>
+      <select id="status" aria-label="Status">
         <option value="">All</option>
         <option value="available">Available</option>
         <option value="checked_out">Checked Out</option>
       </select>
-      <select id="system"></select>
-      <select id="shelf"></select>
+
+      <label class="sr-only" for="system">System</label>
+      <select id="system" aria-label="System"></select>
+
+      <label class="sr-only" for="shelf">Shelf</label>
+      <select id="shelf" aria-label="Shelf"></select>
+
+      <label class="sr-only" for="holder">Holder</label>
       <input id="holder" type="text" placeholder="Holder" />
-      <label><input id="include_deleted" type="checkbox" /> Show deleted</label>
-      <select id="page_size">
-        <option>50</option><option>100</option><option>200</option>
+
+      <label for="include_deleted">
+        <input id="include_deleted" type="checkbox" />
+        Show deleted
+      </label>
+
+      <label class="sr-only" for="page_size">Page size</label>
+      <select id="page_size" aria-label="Page size">
+        <option>50</option>
+        <option>100</option>
+        <option>200</option>
       </select>
-      <button id="refreshBtn" type="button">Refresh</button>
+
+      <button id="refreshBtn" type="button" aria-label="Refresh list">Refresh</button>
     </div>
 
     <!-- Items Table -->
-    <div class="table-scroll-region">
+    <div class="table-scroll-region" role="region" aria-label="Items">
       <table id="itemsTable" class="file-table">
         <thead class="file-table-head">
           <tr>
-            <th data-sort="name">Name</th>
-            <th data-sort="sku">SKU</th>
-            <th data-sort="system_code">System</th>
-            <th data-sort="shelf_label">Shelf</th>
-            <th data-sort="quantity_on_hand">Qty</th>
-            <th data-sort="last_movement_ts">Last Activity</th>
-            <th data-sort="clearance_level">CL</th>
-            <th>Actions</th>
+            <th scope="col" data-sort="name">Name</th>
+            <th scope="col" data-sort="sku">SKU</th>
+            <th scope="col" data-sort="system_code">System</th>
+            <th scope="col" data-sort="shelf_label">Shelf</th>
+            <th scope="col" data-sort="quantity_on_hand">Qty</th>
+            <th scope="col" data-sort="last_movement_ts">Last Activity</th>
+            <th scope="col" data-sort="clearance_level">CL</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody id="itemsTbody"></tbody>
@@ -74,80 +105,104 @@
     </div>
 
     <!-- Pagination -->
-    <div class="pager">
-      <button id="prevPage">&larr; Prev</button>
-      <span id="pagerStatus"></span>
-      <button id="nextPage">Next &rarr;</button>
-    </div>
+    <nav class="pager" role="navigation" aria-label="Pagination">
+      <button id="prevPage" type="button" aria-label="Previous page">&larr; Prev</button>
+      <span id="pagerStatus" aria-live="polite"></span>
+      <button id="nextPage" type="button" aria-label="Next page">Next &rarr;</button>
+    </nav>
   </section>
 
   <!-- Item Drawer -->
-  <dialog id="itemDrawer">
-    <div id="itemDetail"></div>
+  <dialog id="itemDrawer" aria-labelledby="itemDrawerTitle">
+    <div id="itemDetail" role="document">
+      <!-- Populated dynamically -->
+    </div>
     <div class="drawer-actions">
-      <button id="itemDeleteBtn" data-requires-role="admin">Delete</button>
-      <button id="itemRestoreBtn" data-requires-role="admin">Restore</button>
-      <button id="openMovementModal">Record Movement</button>
+      <button id="itemDeleteBtn" data-requires-role="admin" type="button">Delete</button>
+      <button id="itemRestoreBtn" data-requires-role="admin" type="button">Restore</button>
+      <button id="openMovementModal" type="button">Record Movement</button>
       <button id="closeItemDrawer" type="button">Close</button>
     </div>
   </dialog>
 
   <!-- Movement Modal -->
-  <dialog id="movementModal">
-    <nav class="tabs">
-      <button data-kind="receive">Receive</button>
-      <button data-kind="issue">Issue</button>
-      <button data-kind="return">Return</button>
-      <button data-kind="adjust" data-requires-role="admin">Adjust</button>
-      <button data-kind="transfer">Transfer</button>
+  <dialog id="movementModal" aria-labelledby="movementTitle">
+    <h2 id="movementTitle" class="sr-only">Record Movement</h2>
+
+    <nav class="tabs" role="tablist" aria-label="Movement types">
+      <button data-kind="receive" role="tab" aria-selected="true">Receive</button>
+      <button data-kind="issue" role="tab" aria-selected="false">Issue</button>
+      <button data-kind="return" role="tab" aria-selected="false">Return</button>
+      <button data-kind="adjust" role="tab" aria-selected="false" data-requires-role="admin">Adjust</button>
+      <button data-kind="transfer" role="tab" aria-selected="false">Transfer</button>
     </nav>
 
     <div class="modal-body">
       <form id="mvReceive" data-kind="receive" hidden>
         <h3>Receive</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
+        <label class="sr-only" for="rc_item">Item ID</label>
+        <input id="rc_item" name="item_id" placeholder="Item ID" required />
+        <label class="sr-only" for="rc_shelf">Shelf ID</label>
+        <input id="rc_shelf" name="shelf_id" placeholder="Shelf ID" required />
+        <label class="sr-only" for="rc_qty">Quantity</label>
+        <input id="rc_qty" name="qty" type="number" placeholder="Quantity" required />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvIssue" data-kind="issue" hidden>
         <h3>Issue</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
-        <input name="holder" placeholder="Holder" required />
-        <input name="due_at" type="datetime-local" />
+        <label class="sr-only" for="is_item">Item ID</label>
+        <input id="is_item" name="item_id" placeholder="Item ID" required />
+        <label class="sr-only" for="is_shelf">Shelf ID</label>
+        <input id="is_shelf" name="shelf_id" placeholder="Shelf ID" required />
+        <label class="sr-only" for="is_qty">Quantity</label>
+        <input id="is_qty" name="qty" type="number" placeholder="Quantity" required />
+        <label class="sr-only" for="is_holder">Holder</label>
+        <input id="is_holder" name="holder" placeholder="Holder" required />
+        <label class="sr-only" for="is_due">Due at</label>
+        <input id="is_due" name="due_at" type="datetime-local" />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvReturn" data-kind="return" hidden>
         <h3>Return</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
-        <input name="holder" placeholder="Holder" />
+        <label class="sr-only" for="rt_item">Item ID</label>
+        <input id="rt_item" name="item_id" placeholder="Item ID" required />
+        <label class="sr-only" for="rt_shelf">Shelf ID</label>
+        <input id="rt_shelf" name="shelf_id" placeholder="Shelf ID" required />
+        <label class="sr-only" for="rt_qty">Quantity</label>
+        <input id="rt_qty" name="qty" type="number" placeholder="Quantity" required />
+        <label class="sr-only" for="rt_holder">Holder</label>
+        <input id="rt_holder" name="holder" placeholder="Holder" />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvAdjust" data-kind="adjust" hidden>
         <h3>Adjust (Admin)</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty_delta" type="number" placeholder="Delta Quantity" required />
-        <input name="note" placeholder="Reason" required />
+        <label class="sr-only" for="ad_item">Item ID</label>
+        <input id="ad_item" name="item_id" placeholder="Item ID" required />
+        <label class="sr-only" for="ad_shelf">Shelf ID</label>
+        <input id="ad_shelf" name="shelf_id" placeholder="Shelf ID" required />
+        <label class="sr-only" for="ad_qty">Delta Quantity</label>
+        <input id="ad_qty" name="qty_delta" type="number" placeholder="Delta Quantity" required />
+        <label class="sr-only" for="ad_note">Reason</label>
+        <input id="ad_note" name="note" placeholder="Reason" required />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvTransfer" data-kind="transfer" hidden>
         <h3>Transfer</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="from_shelf_id" placeholder="From Shelf ID" required />
-        <input name="to_shelf_id" placeholder="To Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
+        <label class="sr-only" for="tr_item">Item ID</label>
+        <input id="tr_item" name="item_id" placeholder="Item ID" required />
+        <label class="sr-only" for="tr_from">From Shelf ID</label>
+        <input id="tr_from" name="from_shelf_id" placeholder="From Shelf ID" required />
+        <label class="sr-only" for="tr_to">To Shelf ID</label>
+        <input id="tr_to" name="to_shelf_id" placeholder="To Shelf ID" required />
+        <label class="sr-only" for="tr_qty">Quantity</label>
+        <input id="tr_qty" name="qty" type="number" placeholder="Quantity" required />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
@@ -156,24 +211,24 @@
     <button id="closeMovementModal" type="button">Close</button>
   </dialog>
 
-  <!-- Admin Section -->
-  <section id="adminSection" hidden>
-    <h2>Admin Dashboard</h2>
+  <!-- Admin Section (hidden until role applied) -->
+  <section id="adminSection" hidden aria-labelledby="adminHeading">
+    <h2 id="adminHeading">Admin Dashboard</h2>
 
     <div class="admin-block">
       <h3>Systems</h3>
-      <form id="systemForm" data-requires-role="admin">
+      <form id="systemForm" data-requires-role="admin" novalidate>
         <input name="id" type="hidden" />
         <input name="code" placeholder="Code" required />
         <input name="notes" placeholder="Notes" />
         <button type="submit">Save</button>
       </form>
-      <table><tbody id="systemsTable"></tbody></table>
+      <table aria-label="Systems"><tbody id="systemsTable"></tbody></table>
     </div>
 
     <div class="admin-block">
       <h3>Shelves</h3>
-      <form id="shelfForm" data-requires-role="admin">
+      <form id="shelfForm" data-requires-role="admin" novalidate>
         <input name="id" type="hidden" />
         <input name="system_id" placeholder="System ID" required />
         <input name="label" placeholder="Label" required />
@@ -183,12 +238,12 @@
         <input name="ordinal" type="number" placeholder="Ordinal" />
         <button type="submit">Save</button>
       </form>
-      <table><tbody id="shelvesTable"></tbody></table>
+      <table aria-label="Shelves"><tbody id="shelvesTable"></tbody></table>
     </div>
 
     <div class="admin-block">
       <h3>Users</h3>
-      <form id="userForm" data-requires-role="admin">
+      <form id="userForm" data-requires-role="admin" novalidate>
         <input name="email" type="email" placeholder="Email" required />
         <input name="name" placeholder="Name" required />
         <select name="role" required>
@@ -199,7 +254,7 @@
         <input name="max_clearance_level" type="number" placeholder="Max CL (optional)" />
         <button type="submit">Add User</button>
       </form>
-      <table><tbody id="usersTable"></tbody></table>
+      <table aria-label="Users"><tbody id="usersTable"></tbody></table>
     </div>
   </section>
 

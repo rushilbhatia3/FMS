@@ -1,4 +1,3 @@
-# systems.py
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from typing import Optional, List
@@ -81,7 +80,7 @@ def update_system(system_id: int, payload: SystemIn):
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="System not found")
 
-    # if code is changing, enforce uniqueness
+    #enforce uniqueness
     existing = db.db_read("SELECT id FROM systems WHERE code = ? AND id <> ?", (payload.code, system_id))
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="code already exists")

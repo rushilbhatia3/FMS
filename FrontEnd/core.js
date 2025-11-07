@@ -1,7 +1,3 @@
-// core.js
-// Minimal dependencies: include dayjs in your HTML before this file.
-// <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-
 export const core = (() => {
   const state = {
     currentUser: null,

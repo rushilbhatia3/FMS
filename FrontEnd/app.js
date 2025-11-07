@@ -1,5 +1,4 @@
-// app.js
-import { core } from "./core.js";
+import { core } from "./core.js"; // ignore this error - this is supposed to be "./core.js"
 
 const PAGE_SIZE_DEFAULT = 50;
 
@@ -52,7 +51,6 @@ const App = (() => {
   // ---------- Init ----------
   async function init() {
     bindAuth();
-    bindToolbar();
     bindSorting();
     bindPagination();
     bindItemDrawer();
