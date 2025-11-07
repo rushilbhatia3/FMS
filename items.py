@@ -1,20 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from typing import Optional, List, Literal, Dict, Any, Tuple
-
 import db
 from auth import get_current_user, require_admin
 
 router = APIRouter(tags=["items"])
 
 # ---------- Pydantic models ----------
-
 class ItemCreate(BaseModel):
     sku: str
     name: str
     unit: str = "units"
-    clearance_level: int
-    home_shelf_id: Optional[int] = None
+    clearance_level: int = Field(..., ge=1, le=4)
+    system_code: str = Field(..., min_length=1, max_length=64)
+    shelf_label: str = Field(..., min_length=1, max_length=64)
+    quantity: int = Field(..., ge=0)
+
     tag: Optional[str] = None
     note: Optional[str] = None
 
@@ -37,7 +38,7 @@ class ItemUpdate(BaseModel):
     name: Optional[str] = None
     unit: Optional[str] = None
     clearance_level: Optional[int] = None
-    home_shelf_id: Optional[int] = None
+    shelf_id: Optional[int] = None
     tag: Optional[str] = None
     note: Optional[str] = None
 
@@ -48,12 +49,12 @@ class ItemOut(BaseModel):
     name: str
     unit: str
     clearance_level: int
-    quantity_on_hand: int
+    quantity: int
     is_deleted: int
     shelf_id: Optional[int] = None
     shelf_label: Optional[str] = None
     system_code: Optional[str] = None
-    is_out: int
+    is_out: int = 0
     last_issue_ts: Optional[str] = None
     last_return_ts: Optional[str] = None
     last_movement_ts: Optional[str] = None
@@ -79,16 +80,15 @@ ALLOWED_SORTS = {
     "name": "name",
     "sku": "sku",
     "last_movement_ts": "last_movement_ts",
-    "quantity_on_hand": "quantity_on_hand",
+    "quantity": "quantity",
     "clearance_level": "clearance_level",
     "system_code": "system_code",
     "shelf_label": "shelf_label",
 }
 
 def _sort_clause(sort: str, direction: str) -> str:
-    col = ALLOWED_SORTS.get(sort, "created_at")
+    col = ALLOWED_SORTS.get(sort, "last_movement_ts")
     dir_sql = "DESC" if direction.lower() == "desc" else "ASC"
-    # name/sku/shelf/system sorts should be case-insensitive
     if col in ("name", "sku", "shelf_label", "system_code"):
         return f"{col} COLLATE NOCASE {dir_sql}, item_id ASC"
     return f"{col} {dir_sql}, item_id ASC"
@@ -111,7 +111,7 @@ def list_items(
     holder: str = Query(""),
     min_qty: Optional[int] = Query(None),
     max_qty: Optional[int] = Query(None),
-    sort: str = Query("last_movement_ts"),   # <-- was "created_at"
+    sort: str = Query("last_movement_ts"),
     dir: Literal["asc", "desc"] = Query("desc", alias="dir"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
@@ -119,92 +119,83 @@ def list_items(
 ):
     user_maxCL = _current_user_clearance(user)
 
-    # ---------- CTE stack ----------
-    base_cte = """
-    WITH base AS (
+    # Normalize inputs
+    params = {
+        "maxCL": user_maxCL,                         # None means unlimited
+        "include_del": 1 if include_deleted else 0,
+        "system_code": (system_code or "").strip(),
+        "shelf_label": (shelf_label or "").strip(),
+        "status": (status_filter or "").strip(),     # '', 'available', 'checked_out'
+        "min_qty": min_qty,
+        "max_qty": max_qty,
+        "holder": (holder or "").strip(),
+        "q": (q or "").strip(),
+    }
+
+    # One CTE with all filters (FTS + holder guarded so empty values don't exclude everything)
+    filtered_cte = """
+    WITH filtered AS (
       SELECT isc.*
       FROM item_status_current isc
-      WHERE (? IS NULL OR isc.clearance_level <= ?)
-        AND (? = 1 OR isc.is_deleted = 0)
-        AND (? = '' OR isc.system_code = ?)
-        AND (? = '' OR isc.shelf_label = ?)
+      WHERE (:maxCL IS NULL OR isc.clearance_level <= :maxCL)
+        AND (:include_del = 1 OR isc.is_deleted = 0)
+        AND (:system_code = '' OR isc.system_code = :system_code)
+        AND (:shelf_label = '' OR isc.shelf_label = :shelf_label)
         AND (
-              ? = ''
-           OR (? = 'available'   AND isc.is_out = 0)
-           OR (? = 'checked_out' AND isc.is_out = 1)
+              :status = ''
+           OR (:status = 'available'    AND isc.is_out = 0)
+           OR (:status = 'checked_out'  AND isc.is_out = 1)
         )
-        AND (? IS NULL OR isc.quantity_on_hand >= ?)
-        AND (? IS NULL OR isc.quantity_on_hand <= ?)
-    ),
-    searched AS (
-      SELECT b.* FROM base b WHERE (? = '')
-      UNION ALL
-      SELECT b.* FROM base b
-      JOIN items_fts ON items_fts.rowid = b.item_id
-      WHERE (? <> '' AND items_fts MATCH ?)
-    ),
-    holder_filtered AS (
-      SELECT s.* FROM searched s WHERE (? = '')
-      UNION ALL
-      SELECT s.* FROM searched s
-      WHERE (? <> '')
-        AND EXISTS (
-          SELECT 1 FROM current_out_by_holder h
-          WHERE h.item_id = s.item_id AND h.holder = ?
-        )
+        AND (:min_qty IS NULL OR isc.quantity >= :min_qty)
+        AND (:max_qty IS NULL OR isc.quantity <= :max_qty)
+        AND (:holder = '' OR EXISTS (
+              SELECT 1 FROM current_out_by_holder h
+              WHERE h.item_id = isc.item_id AND h.holder = :holder
+            ))
+        AND (:q = '' OR isc.item_id IN (
+              SELECT rowid FROM items_fts WHERE items_fts MATCH :q
+            ))
     )
     """
 
-    # ---------- Build parameters in exact placeholder order ----------
-    maxCL = None if user_maxCL is None else user_maxCL
-    inc_del = 1 if include_deleted else 0
-    sys_code = system_code or ""
-    sh_label = shelf_label or ""
-    stat = status_filter or ""
-    qstr = q or ""
-    holder_str = holder or ""
-
-    # base CTE (14 placeholders)
-    base_params = [
-        maxCL, maxCL,                 # (? IS NULL OR isc.clearance_level <= ?)
-        inc_del,                      # (? = 1 OR isc.is_deleted = 0)
-        sys_code, sys_code,           # (? = '' OR isc.system_code = ?)
-        sh_label, sh_label,           # (? = '' OR isc.shelf_label = ?)
-        stat, stat, stat,             # ? = '' OR (?='available') OR (?='checked_out')
-        min_qty, min_qty,             # (? IS NULL OR isc.quantity_on_hand >= ?)
-        max_qty, max_qty,             # (? IS NULL OR isc.quantity_on_hand <= ?)
-    ]
-
-    # searched CTE (3 placeholders)
-    search_params = [
-        qstr,                         # (? = '')
-        qstr, qstr,                   # (? <> '' AND items_fts MATCH ?)
-    ]
-
-    # holder_filtered CTE (3 placeholders)
-    holder_params = [
-        holder_str,                   # (? = '')
-        holder_str, holder_str,       # (? <> '') AND holder = ?
-    ]
-
-    where_params_full = tuple(base_params + search_params + holder_params)
-
-    # ---------- Total count ----------
-    count_sql = base_cte + "SELECT COUNT(1) AS total FROM holder_filtered;"
-    total_rows = db.db_read(count_sql, where_params_full)
+    # Total
+    count_sql = filtered_cte + "SELECT COUNT(1) AS total FROM filtered;"
+    total_rows = db.db_read(count_sql, params)
     total = int(total_rows[0]["total"]) if total_rows else 0
 
-    # ---------- Page query ----------
-    offset = (page - 1) * page_size
-    order_clause = _sort_clause(sort, dir)
-    page_sql = base_cte + f"""
+    # Sorting
+    def _sort_clause_safe(col: str, direction: str) -> str:
+        direction = "ASC" if str(direction).lower() == "asc" else "DESC"
+        allowed = {
+            "last_movement_ts": "last_movement_ts",
+            "created_at":       "created_at",
+            "name":             "name",
+            "sku":              "sku",
+            "quantity":         "quantity",
+            "clearance_level":  "clearance_level",
+            "system_code":      "system_code",
+            "shelf_label":      "shelf_label",
+        }
+        key = allowed.get(col, "last_movement_ts")
+        return f"{key} {direction}"
+
+    order_clause = _sort_clause_safe(sort, dir)
+
+    # Page
+    params_page = dict(params)
+    params_page.update({
+        "limit": page_size,
+        "offset": (page - 1) * page_size,
+    })
+
+    page_sql = filtered_cte + f"""
     SELECT
       item_id,
       sku,
       name,
       unit,
       clearance_level,
-      quantity_on_hand,
+      quantity,
       is_deleted,
       shelf_id,
       shelf_label,
@@ -213,11 +204,12 @@ def list_items(
       last_issue_ts,
       last_return_ts,
       last_movement_ts
-    FROM holder_filtered
+    FROM filtered
     ORDER BY {order_clause}
-    LIMIT ? OFFSET ?;
+    LIMIT :limit OFFSET :offset;
     """
-    rows = db.db_read(page_sql, where_params_full + (page_size, offset))
+
+    rows = db.db_read(page_sql, params_page)
 
     items = [
         {
@@ -226,7 +218,7 @@ def list_items(
             "name": r["name"],
             "unit": r["unit"],
             "clearance_level": r["clearance_level"],
-            "quantity_on_hand": r["quantity_on_hand"],
+            "quantity": r["quantity"],
             "is_deleted": r["is_deleted"],
             "shelf_id": r["shelf_id"],
             "shelf_label": r["shelf_label"],
@@ -238,14 +230,16 @@ def list_items(
         }
         for r in rows
     ]
+
     return {"items": items, "page": page, "page_size": page_size, "total": total}
+
 @router.get("/items/{item_id}", response_model=ItemDetailOut)
 def get_item(item_id: int, user=Depends(get_current_user)):
     user_maxCL = _current_user_clearance(user)
     row = db.db_read(
         """
         SELECT
-          i.id, i.sku, i.name, i.unit, i.clearance_level, i.quantity_on_hand,
+          i.id, i.sku, i.name, i.unit, i.clearance_level, i.quantity,
           i.tag, i.note, i.is_deleted, i.created_at, i.updated_at,
           isc.shelf_id, isc.shelf_label, isc.system_code, isc.is_out,
           isc.last_issue_ts, isc.last_return_ts, isc.last_movement_ts
@@ -265,7 +259,7 @@ def get_item(item_id: int, user=Depends(get_current_user)):
         "name": r["name"],
         "unit": r["unit"],
         "clearance_level": r["clearance_level"],
-        "quantity_on_hand": r["quantity_on_hand"],
+        "quantity": r["quantity"],
         "is_deleted": r["is_deleted"],
         "shelf_id": r["shelf_id"],
         "shelf_label": r["shelf_label"],
@@ -281,36 +275,99 @@ def get_item(item_id: int, user=Depends(get_current_user)):
     }
 
 
-@router.post("/items", response_model=ItemDetailOut, status_code=201, dependencies=[Depends(require_admin)])
-def create_item(payload: ItemCreate):
-    # Uniqueness
-    exists = db.db_read("SELECT 1 FROM items WHERE sku = ?", (payload.sku.strip(),))
-    if exists:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="SKU already exists")
+@router.post("/items", response_model=ItemOut, status_code=201)
+def create_item(payload: ItemCreate, user=Depends(get_current_user)):
 
-    # Home shelf (optional) must exist if provided
-    if payload.home_shelf_id is not None:
-        sh = db.db_read("SELECT id FROM shelves WHERE id = ?", (payload.home_shelf_id,))
-        if not sh:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shelf not found")
+    _enforce_clearance_for_create(user, int(payload.clearance_level))
 
-    item_id = db.db_write(
+    shelf_id = _resolve_shelf_id(payload.system_code, payload.shelf_label)
+
+    # ----------------- CREATE ITEM -----------------
+    try:
+        sql = """
+            INSERT INTO items
+            (sku, name, unit, clearance_level, quantity, shelf_id, tag, note, created_at, updated_at, is_deleted, added_by)
+            VALUES
+            (:sku, :name, :unit, :clearance_level, 0, :shelf_id, :tag, :note, datetime('now'), datetime('now'), 0, :added_by)
         """
-        INSERT INTO items(sku, name, unit, clearance_level, home_shelf_id, tag, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        params = {
+            "sku": payload.sku,
+            "name": payload.name,
+            "unit": payload.unit or None,
+            "clearance_level": int(payload.clearance_level),
+            "shelf_id": shelf_id,
+            "tag": payload.tag or None,
+            "note": payload.note or None,
+            "added_by": (user.get("email") or user.get("name") or "system"),
+        }
+        item_id = db.db_write(sql, params)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"failed to insert item: {e}")
+
+    # ----------------- SEED INITIAL QUANTITY (replace your old block with this one) -----------------
+    initial_qty = int(payload.quantity or 0)
+    if initial_qty > 0:
+        try:
+            # Discover movements columns so we don't mismatch placeholders
+            cols_rows = db.db_read("PRAGMA table_info('movements');")
+            mov_cols = {r["name"] for r in cols_rows}
+
+            # Base cols we want to write
+            cols = ["item_id", "qty", "type", "operator_name", "note"]
+            values = {
+                "item_id": item_id,
+                "qty": initial_qty,
+                "type": "receive",
+                "operator_name": (user.get("email") or user.get("name") or "system"),
+                "note": "initial receive on create" if not payload.note else f"create: {payload.note}",
+            }
+
+            # Add shelf_id only if the column exists
+            if "shelf_id" in mov_cols and shelf_id is not None:
+                cols.insert(3, "shelf_id")  # put it before operator_name
+                values["shelf_id"] = shelf_id
+
+            # (timestamp has a DEFAULT, so we don't need to pass it)
+            # Build named-parameter SQL so order can't drift
+            placeholders = ", ".join([f":{c}" for c in cols])
+            col_list     = ", ".join(cols)
+            sql = f"INSERT INTO movements ({col_list}) VALUES ({placeholders})"
+
+            db.db_write(sql, values)
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"item created but failed to record initial movement: {e}"
+            )
+    # ----------------- RETURN CREATED RECORD -----------------
+    row = db.db_read(
+        """
+        SELECT i.id, i.sku, i.name, i.unit, i.clearance_level, i.quantity,
+               COALESCE(sys.code,'') AS system_code,
+               COALESCE(sh.label,'') AS shelf_label,
+               i.is_deleted
+        FROM items i
+        LEFT JOIN shelves sh ON sh.id = i.shelf_id
+        LEFT JOIN systems sys ON sys.id = sh.system_id
+        WHERE i.id = ?
         """,
-        (
-            payload.sku.strip(),
-            payload.name.strip(),
-            payload.unit.strip() if payload.unit else "units",
-            payload.clearance_level,
-            payload.home_shelf_id,
-            (payload.tag or None),
-            (payload.note or None),
-        ),
+        (item_id,),
     )
-    # Return detail
-    return get_item(item_id)
+    if not row:
+        raise HTTPException(status_code=500, detail="created item not found")
+    r = row[0]
+    return ItemOut(
+        id=int(r["id"]),
+        sku=r["sku"],
+        name=r["name"],
+        unit=r["unit"],
+        clearance_level=int(r["clearance_level"]),
+        quantity=int(r["quantity"]),
+        system_code=r["system_code"],
+        shelf_label=r["shelf_label"],
+        is_deleted=int(r["is_deleted"]),
+    )
 
 
 @router.put("/items/{item_id}", response_model=ItemDetailOut, dependencies=[Depends(require_admin)])
@@ -386,15 +443,58 @@ def item_movements(item_id: int, user=Depends(get_current_user)):
         (item_id, None if user_maxCL is None else user_maxCL, None if user_maxCL is None else user_maxCL),
     )
     if not allowed:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found or not permitted")
+        raise HTTPException(status_code=404, detail="Item not found or not permitted")
 
     rows = db.db_read(
         """
-        SELECT id, item_id, kind, quantity, shelf_id, holder, due_at, actor_user_id, note, timestamp
-        FROM latest_item_movements
+        SELECT
+          id,
+          item_id,
+          movement_type,
+          quantity,
+          COALESCE(from_shelf_id, shelf_id) AS from_shelf_id,
+          to_shelf_id,
+          operator_name,
+          COALESCE(holder_name, holder) AS holder,  -- support either column name
+          due_at,
+          note,
+          timestamp
+        FROM movements
         WHERE item_id = ?
         ORDER BY timestamp DESC, id DESC
+        LIMIT 10
         """,
         (item_id,),
     )
     return [dict(r) for r in rows]
+
+
+# ---- Helpers ----
+def _enforce_clearance_for_create(user: dict, cl: int):
+    maxCL = user.get("max_clearance_level")
+    role = (user.get("role") or "").lower()
+    if role == "admin":
+        return
+    if maxCL is None:
+        return
+    if cl > int(maxCL):
+        raise HTTPException(status_code=403, detail=f"clearance_level {cl} exceeds your max_clearance_level {maxCL}")
+
+def _resolve_shelf_id(system_code: str, shelf_label: str) -> int:
+    rows = db.db_read(
+        """
+        SELECT sh.id
+        FROM shelves sh
+        JOIN systems sys ON sys.id = sh.system_id
+        WHERE LOWER(TRIM(sys.code)) = LOWER(TRIM(?))
+          AND LOWER(TRIM(sh.label)) = LOWER(TRIM(?))
+          AND COALESCE(sys.is_deleted,0) = 0
+          AND COALESCE(sh.is_deleted,0) = 0
+        LIMIT 1
+        """,
+        (system_code, shelf_label),
+    )
+    if not rows:
+        raise HTTPException(status_code=400,
+            detail="Invalid system_code or shelf_label (not found or deleted)")
+    return int(rows[0]["id"])

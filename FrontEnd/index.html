@@ -30,6 +30,7 @@
     <div class="user-bar" aria-live="polite">
       <span id="roleBadge" title="Current role"></span>
       <button id="logoutBtn" hidden type="button">Logout</button>
+      <button id="adminBtn" class="btn-ghost-small" hidden>Admin</button>
     </div>
   </header>
 
@@ -69,6 +70,10 @@
 
       <label class="sr-only" for="holder">Holder</label>
       <input id="holder" type="text" placeholder="Holder" />
+      <button id="addItemBtn" class="btn btn-primary" type="button">Add Item</button>
+      <button id="importBtn" class="btn" type="button">Import CSV</button>
+      <input id="importFile" type="file" accept=".csv" hidden />
+      <button id="exportBtn" class="btn" type="button">Export CSV</button>
 
       <label for="include_deleted">
         <input id="include_deleted" type="checkbox" />
@@ -94,7 +99,7 @@
             <th scope="col" data-sort="sku">SKU</th>
             <th scope="col" data-sort="system_code">System</th>
             <th scope="col" data-sort="shelf_label">Shelf</th>
-            <th scope="col" data-sort="quantity_on_hand">Qty</th>
+            <th scope="col" data-sort="quantity">Qty</th>
             <th scope="col" data-sort="last_movement_ts">Last Activity</th>
             <th scope="col" data-sort="clearance_level">CL</th>
             <th scope="col">Actions</th>
@@ -210,6 +215,49 @@
 
     <button id="closeMovementModal" type="button">Close</button>
   </dialog>
+
+<!--- Add Item Modal -->
+<dialog id="addItemDialog">
+  <form id="addItemForm" method="dialog" style="padding:1rem 1.25rem; display:grid; grid-template-columns:1fr 1fr; gap:.6rem .8rem;">
+    <h3 style="grid-column:1 / -1; margin:.25rem 0 .25rem;">Add Item</h3>
+
+    <label for="ai_sku">SKU</label>
+    <input id="ai_sku" name="sku" type="text" placeholder="SKU (optional)" />
+
+    <label for="ai_name">Name</label>
+    <input id="ai_name" name="name" type="text" placeholder="Item name" required />
+
+    <label for="ai_unit">Unit</label>
+    <input id="ai_unit" name="unit" type="text" value="units" />
+
+    <label for="ai_cl">Clearance Level (1–4)</label>
+    <input id="ai_cl" name="clearance_level" type="number" min="1" max="4" required />
+
+    <label for="ai_system">System Code</label>
+    <input id="ai_system" name="system_code" list="systemCodes" required />
+    <datalist id="systemCodes"></datalist>
+
+    <label for="ai_shelf">Shelf Label</label>
+    <input id="ai_shelf" name="shelf_label" list="shelfLabels" required />
+    <datalist id="shelfLabels"></datalist>
+
+    <label for="ai_qty">Initial Quantity</label>
+    <input id="ai_qty" name="quantity" type="number" min="0" value="0" />
+
+    <label for="ai_tag">Tag</label>
+    <input id="ai_tag" name="tag" type="text" placeholder="optional" />
+
+    <label for="ai_note">Note</label>
+    <input id="ai_note" name="note" type="text" placeholder="optional" />
+
+    <div id="addItemError" style="grid-column:1 / -1; color:#a11; font-size:.8rem; min-height:1.1rem;"></div>
+
+    <div style="grid-column:1 / -1; display:flex; gap:.5rem; justify-content:flex-end; margin-top:.25rem;">
+      <button id="addItemCancel" type="button" class="btn btn-secondary">Cancel</button>
+      <button id="addItemSubmit" type="submit" class="btn btn-primary">Create</button>
+    </div>
+  </form>
+</dialog>
 
   <!-- Admin Section (hidden until role applied) -->
   <section id="adminSection" hidden aria-labelledby="adminHeading">

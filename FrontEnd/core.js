@@ -48,6 +48,7 @@ export const core = (() => {
       state.currentUser = null;
       throw new Error("Not authenticated");
     }
+    
   }
   async function login(email, password) {
     const u = await api.post("/api/session/login", { email, password });

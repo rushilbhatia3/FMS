@@ -1,4 +1,4 @@
-import { core } from "./core.js"; // ignore this error - this is supposed to be "./core.js"
+import { core } from "./core.js"; 
 
 const PAGE_SIZE_DEFAULT = 50;
 
@@ -61,6 +61,7 @@ const App = (() => {
       core.hide(el.loginSection);
       core.show(el.appSection);
       core.applyRoleVisibility();
+      applyRoleUIForAdminButton(core.state.currentUser);
       await initFilters();
       await loadItems();
     } catch {
@@ -83,6 +84,7 @@ const App = (() => {
         core.hide(el.loginSection);
         core.show(el.appSection);
         core.applyRoleVisibility();
+        applyRoleUIForAdminButton(core.state.currentUser);
         await initFilters();
         await loadItems();
       } catch (err) {
@@ -91,7 +93,11 @@ const App = (() => {
     });
     el.logoutBtn?.addEventListener("click", async () => {
       await core.logout();
-      window.location.reload();
+      core.show(el.loginSection);
+      core.hide(el.appSection);
+      core.applyRoleVisibility();                 // hides role-gated bits + logout button
+      applyRoleUIForAdminButton(null);            // hides Admin button cleanly
+      try { localStorage.removeItem("filters"); } catch {}
     });
   }
 
@@ -213,54 +219,78 @@ function prefillMovementForms(item) {
   }
 
   // ---------- Load items ----------
-  async function loadItems() {
-    const params = {
-      q: el.q.value.trim(),
-      status: el.status.value,
-      include_deleted: el.include_deleted.checked ? "true" : "false",
-      system_code: el.system.value || "",
-      shelf_label: el.shelf.value || "",
-      holder: el.holder.value.trim(),
-      sort: currentSort,
-      dir: currentDir,
-      page: String(currentPage),
-      page_size: String(Number(el.page_size.value) || PAGE_SIZE_DEFAULT),
-    };
-    try {
-      const data = await core.api.get("/api/items", params);
-      renderItems(data.items || []);
-      const total = data.total || 0;
-      const size = Number(params.page_size);
-      const maxPage = Math.max(1, Math.ceil(total / size));
-      currentPage = Math.min(currentPage, maxPage);
-      el.pagerStatus.textContent = `Page ${currentPage} of ${maxPage} • ${total} total`;
-      el.prevPage.disabled = currentPage <= 1;
-      el.nextPage.disabled = currentPage >= maxPage;
-    } catch (err) {
-      core.toast(`Failed to load items: ${err.message}`, "error");
-    }
-  }
+async function loadItems() {
+  const params = {
+    q: el.q.value.trim(),
+    status: el.status.value,
+    include_deleted: el.include_deleted.checked ? "true" : "false",
+    system_code: el.system.value || "",
+    shelf_label: el.shelf.value || "",
+    holder: el.holder?.value?.trim?.() || "",        // guard if holder input doesn't exist
+    sort: currentSort || "created_at",
+    dir: currentDir || "desc",
+    page: String(currentPage),
+    page_size: String(Number(el.page_size.value) || PAGE_SIZE_DEFAULT),
+  };
 
-  function renderItems(items) {
-    el.itemsTbody.innerHTML = items.map(row => {
-      const when = row.last_movement_ts ? dayjs(row.last_movement_ts).fromNow?.() || row.last_movement_ts : "—";
-      const status = row.is_out ? "Out" : "Avail";
-      return `<tr data-id="${row.id}">
-        <td class="clickable">${row.name}</td>
-        <td>${row.sku}</td>
-        <td>${row.system_code ?? "—"}</td>
-        <td>${row.shelf_label ?? "—"}</td>
-        <td>${row.quantity_on_hand}</td>
-        <td>${when}</td>
-        <td>${row.clearance_level}</td>
-        <td>
-          <button class="viewBtn" data-id="${row.id}">View</button>
-          <button class="editBtn" data-id="${row.id}" data-requires-role="admin">Edit</button>
-          ${row.is_deleted ? `<button class="restoreBtn" data-id="${row.id}" data-requires-role="admin">Restore</button>`
-                           : `<button class="deleteBtn" data-id="${row.id}" data-requires-role="admin">Delete</button>`}
-        </td>
-      </tr>`;
-    }).join("");
+  try {
+    const data = await core.api.get("/api/items", params);
+
+    const items = Array.isArray(data.items) ? data.items
+                 : Array.isArray(data.rows) ? data.rows
+                 : [];
+
+    renderItems(items);
+
+    const total = Number(data.total ?? data.total_rows ?? 0);
+    const size  = Number(params.page_size);
+    const maxPage = Math.max(1, Math.ceil(total / size));
+    currentPage = Math.min(currentPage, maxPage);
+    el.pagerStatus.textContent = `Page ${currentPage} of ${maxPage} • ${total} total`;
+    el.prevPage.disabled = currentPage <= 1;
+    el.nextPage.disabled = currentPage >= maxPage;
+  } catch (err) {
+    console.error(err);
+    core.toast(`Failed to load items: ${err.message}`, "error");
+  }
+}
+
+function renderItems(items) {
+  if (!el.itemsTbody) {
+    console.warn("itemsTbody not found in DOM");
+    return;
+  }
+  if (!Array.isArray(items)) items = [];
+
+  el.itemsTbody.innerHTML = items.map(row => {
+    const when = row.last_movement_ts
+      ? (dayjs(row.last_movement_ts).fromNow?.() || row.last_movement_ts)
+      : "—";
+    const sys  = row.system_code ?? "—";
+    const shelf= row.shelf_label ?? "—";
+    const qty  = (row.quantity ?? row.qty ?? 0);
+    const del  = Number(row.is_deleted ?? 0) === 1;
+
+    return `<tr data-id="${row.id}">
+      <td class="clickable">${row.name}</td>
+      <td>${row.sku}</td>
+      <td>${sys}</td>
+      <td>${shelf}</td>
+      <td>${qty}</td>
+      <td>${when}</td>
+      <td>${row.clearance_level}</td>
+      <td>
+        <button class="viewBtn" data-id="${row.id}">View</button>
+        <button class="editBtn" data-id="${row.id}" data-requires-role="admin">Edit</button>
+        ${del
+          ? `<button class="restoreBtn" data-id="${row.id}" data-requires-role="admin">Restore</button>`
+          : `<button class="deleteBtn" data-id="${row.id}" data-requires-role="admin">Delete</button>`}
+      </td>
+    </tr>`;
+  }).join("");
+
+
+
 
     core.applyRoleVisibility();
 
@@ -297,7 +327,7 @@ function prefillMovementForms(item) {
     el.itemDetail.innerHTML = `
       <h3>${item.name} <small>(${item.sku})</small></h3>
       <div>System/Shelf: ${item.system_code ?? "—"} / ${item.shelf_label ?? "—"}</div>
-      <div>Qty: ${item.quantity_on_hand} • CL: ${item.clearance_level}</div>
+      <div>Qty: ${item.quantity} • CL: ${item.clearance_level}</div>
       <div>Status: ${item.is_out ? "Checked out" : "Available"}</div>
       <div>Last issue: ${item.last_issue_ts ?? "—"}</div>
       <div>Last return: ${item.last_return_ts ?? "—"}</div>
@@ -372,6 +402,262 @@ function prefillMovementForms(item) {
   function bindItemDrawer() {
     core.applyRoleVisibility();
   }
+
+  // --- helpers (reuse your existing fetch wrapper if you have one) ---
+async function postJSON(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    // try to parse FastAPI error {detail: "..."} or validation errors
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      const data = await res.json();
+      if (data && data.detail) msg = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+async function postMultipart(url, formData) {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!res.ok) {
+    let msg = `${res.status} ${res.statusText}`;
+    try {
+      const data = await res.json();
+      if (data && data.detail) msg = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+    } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// Collect current filters to mirror /api/items
+function getFilters() {
+  const $ = (id) => document.getElementById(id);
+  const pick = (el) => (el ? el.value : "");
+
+  const includeDeleted = $("include_deleted")?.checked ? "true" : "false";
+  const pageSize = $("page_size") ? $("page_size").value : "50";
+
+  // prefer existing globals if you already track them
+  const sort = (window.currentSort || "last_movement_ts");
+  const dir  = (window.currentDir  || "desc");
+
+  return {
+    q: pick($("q")),
+    status: pick($("status")),
+    system: pick($("system")),
+    shelf: pick($("shelf")),
+    holder: pick($("holder")),
+    include_deleted: includeDeleted,
+    min_qty: "",    // wire if you add inputs
+    max_qty: "",
+    sort, dir,
+    page: String(window.currentPage || 1),
+    page_size: pageSize,
+  };
+}
+
+function toQuery(params) {
+  const usp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== "" && v !== null && v !== undefined) usp.set(k, v);
+  });
+  return usp.toString();
+}
+
+
+
+// --- Add Item dialog wiring ---
+function bindAddItem() {
+  const addBtn   = document.getElementById("addItemBtn");
+  const dlg      = document.getElementById("addItemDialog");
+  const form     = document.getElementById("addItemForm");
+  const btnCancel= document.getElementById("addItemCancel");
+  const btnSubmit= document.getElementById("addItemSubmit");
+  const errEl    = document.getElementById("addItemError");
+
+  if (!addBtn || !dlg || !form) return;
+
+  // ---------- Open dialog ----------
+  addBtn.addEventListener("click", () => {
+    const f = getFilters();
+    const sysInput   = document.getElementById("ai_system");
+    const shelfInput = document.getElementById("ai_shelf");
+
+    form.reset();
+    errEl.textContent = "";
+
+    if (sysInput && f.system) sysInput.value = f.system;
+    if (shelfInput && f.shelf) shelfInput.value = f.shelf;
+
+    dlg.showModal();
+    setTimeout(() => document.getElementById("ai_name")?.focus(), 10);
+  });
+
+  // ---------- Cancel ----------
+  btnCancel?.addEventListener("click", () => dlg.close());
+
+  // ---------- Submit ----------
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errEl.textContent = "";
+    btnSubmit.disabled = true;
+
+    const payload = {
+      sku: (document.getElementById("ai_sku")?.value || "").trim() || undefined,
+      name: (document.getElementById("ai_name")?.value || "").trim(),
+      unit: (document.getElementById("ai_unit")?.value || "units").trim(),
+      clearance_level: Number(document.getElementById("ai_cl")?.value || 0),
+      system_code: (document.getElementById("ai_system")?.value || "").trim(),
+      shelf_label: (document.getElementById("ai_shelf")?.value || "").trim(),
+      quantity: Number(document.getElementById("ai_qty")?.value || 0),
+      tag: (document.getElementById("ai_tag")?.value || "").trim() || undefined,
+      note: (document.getElementById("ai_note")?.value || "").trim() || undefined,
+    };
+
+    // --- validation ---
+    if (!payload.name || !payload.system_code || !payload.shelf_label) {
+      errEl.textContent = "Name, System Code, and Shelf Label are required.";
+      btnSubmit.disabled = false;
+      return;
+    }
+    if (payload.clearance_level < 1 || payload.clearance_level > 4) {
+      errEl.textContent = "Clearance level must be between 1 and 4.";
+      btnSubmit.disabled = false;
+      return;
+    }
+    if (payload.quantity < 0) {
+      errEl.textContent = "Quantity must be zero or greater.";
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    // --- submit ---
+    try {
+      const created = await core.api.post("/api/items", payload);
+
+      core.toast("Item added", "success");
+
+      // make sure newest shows first
+      currentSort = "last_movement_ts";
+      currentDir  = "desc";
+
+      // reset pagination and reload list
+      currentPage = 1;
+      await loadItems();
+
+      // close dialog
+      dlg.close();
+      form.reset();
+    } catch (err) {
+      errEl.textContent = String(err.message || err);
+    } finally {
+      btnSubmit.disabled = false;
+    }
+  });
+}
+
+
+// --- Import CSV wiring ---
+function bindImport() {
+  const importBtn = document.getElementById("importBtn");
+  const importFile = document.getElementById("importFile");
+  const statusEl = document.getElementById("importStatus");
+
+  if (!importBtn || !importFile) return;
+
+  importBtn.addEventListener("click", () => importFile.click());
+
+  importFile.addEventListener("change", async () => {
+    const file = importFile.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+
+    importBtn.disabled = true;
+    if (statusEl) statusEl.textContent = `Importing "${file.name}"...`;
+
+    try {
+      // Endpoint expected: POST /api/items/import
+      const res = await postMultipart("/api/items/import", fd);
+      // Expecting {inserted, updated, skipped, errors: []}
+      const { inserted=0, updated=0, skipped=0, errors=[] } = res || {};
+      const errPrefix = errors && errors.length ? `, errors: ${errors.length}` : "";
+      if (statusEl) statusEl.textContent = `Import complete. Inserted ${inserted}, updated ${updated}, skipped ${skipped}${errPrefix}.`;
+      if (typeof window.loadItems === "function") await window.loadItems();
+    } catch (err) {
+      if (statusEl) statusEl.textContent = `Import failed: ${String(err.message || err)}`;
+    } finally {
+      importBtn.disabled = false;
+      importFile.value = ""; // reset for future uploads
+    }
+  });
+}
+
+// --- Export CSV wiring ---
+function bindExport() {
+  const exportBtn = document.getElementById("exportBtn");
+  if (!exportBtn) return;
+
+  exportBtn.addEventListener("click", () => {
+    const qs = toQuery(getFilters());
+    // Endpoint expected: GET /api/items/export
+    const url = `/api/items/export?${qs}`;
+    // start download (new tab avoids navigation if you prefer)
+    window.open(url, "_self");
+  });
+}
+
+// --- Bundle all bindings ---
+function bindInventoryActions() {
+  bindAddItem();
+  bindImport();
+  bindExport();
+}
+
+function showSection(idToShow) {
+  const app = document.getElementById("appSection");
+  const admin = document.getElementById("adminSection");
+  if (app) app.hidden = idToShow !== "app";
+  if (admin) admin.hidden = idToShow !== "admin";
+}
+
+
+function applyRoleUIForAdminButton(currentUser) {
+  const adminBtn = document.getElementById("adminBtn");
+  if (!adminBtn) return;
+
+  const isAdmin = !!currentUser && String(currentUser.role || "").toLowerCase() === "admin";
+  adminBtn.hidden = !isAdmin;
+
+  if (isAdmin && !adminBtn._bound) {
+    adminBtn.addEventListener("click", () => {
+      showSection("admin");
+      // lazy-load lists the first time you open Admin
+      if (window.Admin && typeof window.Admin.loadAdminLists === "function") {
+        window.Admin.loadAdminLists();
+      }
+    });
+    adminBtn._bound = true;
+  }
+}
+
+
+
+// Call once on startup (after your existing init)
+bindInventoryActions();
+
+
 
   return { init };
 })();
