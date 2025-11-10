@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple, Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from starlette import status
 
-from db import db_read, db_write  # we'll pull from db.py
+from db import db_read, db_write 
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ def _row_to_record(row: Dict[str, str]) -> Dict[str, Any]:
         "deleted_at":      clean(row.get("deleted_at")),
     }
 
-    # Convert numeric-ish fields
+
     if rec["id"] is not None and rec["id"] != "":
         rec["id"] = int(rec["id"])
 
@@ -104,14 +104,12 @@ def _insert_new(rec: Dict[str, Any]) -> None:
     We try to restore created_at / updated_at from the CSV.
     If they're missing, we fall back to CURRENT_TIMESTAMP.
     """
-    # We'll prefer CSV timestamps if present, else use CURRENT_TIMESTAMP.
+
     created_val = rec["created_at"] if rec["created_at"] else None
     updated_val = rec["updated_at"] if rec["updated_at"] else None
 
-    # We'll generate the right SQL depending on whether we have timestamps.
-    # Simpler way: if either timestamp is missing, just let DB fill defaults.
     if created_val and updated_val:
-        # Full restore path, including provided timestamps
+
         db_write(
             """
             INSERT INTO files (
@@ -149,7 +147,7 @@ def _insert_new(rec: Dict[str, Any]) -> None:
             ),
         )
     else:
-        # Let DB assign timestamps with CURRENT_TIMESTAMP
+
         db_write(
             """
             INSERT INTO files (
@@ -267,7 +265,7 @@ async def restore_catalog_endpoint(
   
   or 
   python3 -c "import maintenance; f=open('backup.csv','r',encoding='utf-8'); print(maintenance.restore_from_csv(f))"
-  we are doing this one
+  -> we are doing this one
   
     """
     
@@ -409,9 +407,9 @@ def restore_checkouts_from_csv(file_obj: io.TextIOBase) -> Dict[str, Any]:
       - we validate the basics
       - we insert a new row in `checkouts`
 
-    We do NOT try to "update if exists". We always insert.
     Rationale: checkout log is historical, append-only.
-    You wouldn't usually rewrite it; you just replay the events.
+    You wouldn't usually rewrite it.
+    So we only do inserts, never updates.
 
     Returns summary:
       {
@@ -450,7 +448,6 @@ def restore_checkouts_from_csv(file_obj: io.TextIOBase) -> Dict[str, Any]:
                 # string compare won't always work safely, so let's do a timestamp parse check
                 # We'll do a best-effort lexical check first (cheap, prevents obvious nonsense)
                 if rec["return_at"] < rec["checkout_at"]:
-                    # (This doesn't handle time zones, but matches same logic as DB trigger:
                     #  return_at can't be before checkout_at.)
                     raise ValueError("return_at is earlier than checkout_at")
 

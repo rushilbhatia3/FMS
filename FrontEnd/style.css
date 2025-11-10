@@ -1,5 +1,3 @@
-/* ========== GLOBAL LAYOUT / THEME ========== */
-
 :root {
   --bg-page: #f4f4f5;         /* soft neutral background */
   --bg-card: #ffffff;         /* card / modal surface */
@@ -49,7 +47,6 @@ table {
     width: 100%; 
     padding: 0px;
 }
-
 
 .table-scroll-region {
   position: relative;
@@ -119,7 +116,7 @@ table {
   color: var(--text-main); 
 }
 
-/* Hover state for row (unchanged from before, but this helps visually now that header is fixed) */
+/* Hover state for row */
 .row-clickable {
   cursor: pointer;
   transition: background 0.15s ease, box-shadow 0.15s ease;
@@ -141,7 +138,6 @@ table {
   opacity: 1;
 }
 
-
 /* Clickable row */
 .row-clickable {
   cursor: pointer;
@@ -149,16 +145,6 @@ table {
 }
 .row-clickable:hover {
   background: #fafafa;
-}
-
-/* Deleted rows */
-.row-deleted {
-  opacity: 0.5;
-  text-decoration: line-through;
-}
-.row-deleted .cell-actions {
-  text-decoration: none;
-  opacity: 1;
 }
 
 /* Name gets slightly more emphasis */
@@ -197,11 +183,8 @@ table {
 }
 
 
-
 /* ========== TOOLBAR (top controls row) ========== */
 /* The fixed header bar */
-
-
 .app-header {
   position: fixed;
   top: 0;
@@ -212,7 +195,7 @@ table {
 
   display: flex;
   align-items: center;   /* top-align title block + controls */
-  flex-wrap: nowrap;           /* allows wrapping on narrow screens */
+  flex-wrap: nowrap;          
   gap: 1rem;
 
   background: #ffffff;
@@ -289,9 +272,6 @@ table {
 }
 
 /* --- Search behavior --- */
-
-/* container so we can animate width cleanly */
-
 .search-wrapper {
   display: flex;
   align-items: center;
@@ -318,7 +298,7 @@ table {
   position: relative;
 }
 
-/* on focus we'll widen this container */
+/* on focus widen*/
 .search-wrapper.focused {
   width: 24rem;
   border-color: #222;
@@ -358,9 +338,6 @@ table {
   font-size: 0.8rem;
   line-height: 1.2;
 }
-
-
-
 
 
 /* ========== BUTTONS ========== */
@@ -578,21 +555,21 @@ table {
 
 /* Availability / lifecycle */
 .badge-status-available {
-  background: #dff7e6;      /* was #eef9f1 */
-  color: #145d2e;           /* deeper green */
-  border-color: #8fd7a3;    /* stronger border */
+  background: #dff7e6;      
+  color: #145d2e;           
+  border-color: #8fd7a3;    
 }
 
 .badge-status-out {
   background: #fff3cc;      /* was #fff8e6 */
-  color: #7a4b00;           /* keep the amber text, it's already high contrast */
-  border-color: #e6c46a;    /* richer gold edge */
+  color: #7a4b00;           
+  border-color: #e6c46a;    
 }
 
 .badge-status-archived {
-  background: #e6e6e6;      /* was #f2f2f2 */
-  color: #2f2f2f;           /* push closer to body text contrast */
-  border-color: #bfbfbf;    /* darker gray rim */
+  background: #e6e6e6;      
+  color: #2f2f2f;           
+  border-color: #bfbfbf;   
 }
 
 .badge-clearance-1 {
@@ -860,7 +837,7 @@ table {
   border-color: #d9b8b5;         /* muted red-tan border */
   box-shadow: 0 0 0 rgba(0,0,0,0);
 
-  /* make sure it matches base button typography/padding */
+
   font-size: 0.82rem;
   font-weight: 500;
   line-height: 1.2;
@@ -869,21 +846,21 @@ table {
 
 .btn-destructive:hover,
 .btn-delete:hover {
-  background: #fffafa;           /* whisper of red */
-  border-color: #b45a5a;         /* stronger red border */
-  color: #4a0f0f;                /* darker text for contrast */
+  background: #fffafa;           
+  border-color: #b45a5a;         
+  color: #4a0f0f;               
   box-shadow:
-    0 1px 3px rgba(0,0,0,0.06),   /* same soft lift as base */
-    0 0 0 3px rgba(180, 90, 90, 0.12); /* subtle red focus halo */
+    0 1px 3px rgba(0,0,0,0.06),   
+    0 0 0 3px rgba(180, 90, 90, 0.12); 
 }
 
 .btn-destructive:active,
 .btn-delete:active {
   box-shadow:
-    0 0 0 2px rgba(180, 90, 90, 0.18); /* ring tightens on press */
+    0 0 0 2px rgba(180, 90, 90, 0.18); 
   transition-duration: 0.06s;
 }
-/* Tiny header/logout style (kept from before) */
+
 .btn-ghost-small {
   appearance: none;
   background: transparent;
@@ -1028,7 +1005,7 @@ table {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 
-  display: none; /* we'll turn this on with JS if not logged in */
+  display: none; /* turn this on with JS if not logged in */
   align-items: center;
   justify-content: center;
   z-index: 10000;
@@ -1163,7 +1140,7 @@ table {
   padding-top: 0.75rem;
 }
 
-/* User info/Logout chunk in header */
+/* User info/Logout in header */
 .session-user-shell {
   display: flex;
   align-items: center;
@@ -1196,7 +1173,7 @@ table {
   border-color: rgba(0,0,0,0.3);
 }
 
-/* Reuse our existing .btn.btn-primary */
+/* Reuse existing .btn.btn-primary */
 .btn.btn-primary.wide-btn {
   font-size: 0.8rem;
   line-height: 1.2;

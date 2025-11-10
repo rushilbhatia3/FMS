@@ -21,7 +21,7 @@ function migrateLegacyPrefs() {
 }
 
 function populateForms(s) {
-  migrateLegacyPrefs(); //  add this at the top
+  migrateLegacyPrefs(); // Ensure migration before populating
   originalSettings = { ...s };
 
   // server-backed fields
@@ -60,7 +60,7 @@ async function fetchUsers() {
 
 function fmtDate(s) {
   if (!s) return '—';
-  // created_at from SQLite is typically "YYYY-MM-DD HH:MM:SS"
+
   const t = s.replace(' ', 'T');
   const d = new Date(t);
   return isNaN(d.getTime()) ? s : d.toLocaleString();
@@ -99,7 +99,7 @@ function renderUsers(list) {
 }
 
 
-// ===== Config for endpoints (adjust if your backend differs) =====
+// ===== Config for endpoints =====
 const USERS_ENDPOINT = '/users'; // POST {email, role} -> 201/200
 
 let originalSettings = null;
@@ -288,8 +288,8 @@ function wireTableForm() {
   const form = $('#formTable');
   const defSel = $('#table_rows_default');
   const rememberCb = $('#table_rows_remember');
-  const statusSel = $('#pref_status_filter');      // ✨ add
-  const showDelSel = $('#pref_show_deleted');      // ✨ add
+  const statusSel = $('#pref_status_filter');      
+  const showDelSel = $('#pref_show_deleted');      
   const saveBtn = $('#saveTableBtn');
   const resetBtn = $('#resetTableBtn');
   const msgEl = $('#tableMsg');
@@ -309,7 +309,7 @@ function wireTableForm() {
     localStorage.setItem('table.filter.status', statusVal);
     localStorage.setItem('table.showDeleted.default', showDelVal);
 
-    showMsg(msgEl, 'Table preferences saved.', 'success');  // ✨ use showMsg
+    showMsg(msgEl, 'Table preferences saved.', 'success');  
   });
 
   resetBtn?.addEventListener('click', () => {

@@ -10,7 +10,6 @@
 .head-titles h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--text-main); }
 .head-titles .sub { margin: 0.25rem 0 0; color: var(--text-dim); }
 
-/* Vertical tabs layout (kept) */
 .settings-grid { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; align-items: start; }
 @media (max-width: 860px){ .settings-grid { grid-template-columns: 1fr; } }
 

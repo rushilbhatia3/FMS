@@ -1,4 +1,4 @@
-/* Center the hero using your existing tokens from style.css */
+
 .home-wrap {
   min-height: 80vh;
   display: grid;
@@ -99,10 +99,10 @@
 /* Small utility for the “Show” button */
 .btn.small { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
 
-/* Error text aligned with your global tone */
+
 .form-error {
   margin-top: 0.5rem;
-  color: #9b2d30; /* muted crimson from your palette direction */
+  color: #9b2d30;
   font-weight: 600;
 }
 

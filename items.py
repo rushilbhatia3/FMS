@@ -7,7 +7,7 @@ import db
 router = APIRouter(prefix="/api/items", tags=["items"])
 
 def require_operator():
-    # reuse your existing auth dependency; stub here
+    # reuse existing auth dependency
     class U: email="operator@example.com"
     return U()
 

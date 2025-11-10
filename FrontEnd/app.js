@@ -16,7 +16,7 @@ let APP_SETTINGS = null;
 async function loadAppSettings() {
   try {
     const r = await fetch('/api/settings', { credentials: 'include' });
-    if (!r.ok) return; // silently ignore if not admin
+    if (!r.ok) return; // ignore if not admin
     APP_SETTINGS = await r.json();
   } catch {}
 }
@@ -29,13 +29,10 @@ if (guestBtn) {
   guestBtn.addEventListener('click', async (e) => {
     e.preventDefault();
 
-    // Guest mode is explicitly "not logged in".
-    // We do NOT call /api/session/login.
-    // We just set currentUser locally and apply role.
     currentUser = { role: "guest" };
 
     applyRoleUI();
-    updateHeaderUserInfo();  // will show "Guest (read-only)" if you added that text
+    updateHeaderUserInfo();  // will show "Guest (read-only)" 
     hideSessionModal();
     await loadFiles();
   });
@@ -257,8 +254,7 @@ function applyRoleUI() {
     }
   }
 
-  // If you have "Import" tab / CSV upload stuff in that same modal,
-  // you can hide the tab for non-admins:
+  // --- Import tab visibility ---
   if (tabImportBtn) {
     tabImportBtn.style.display = isadmin ? "" : "none";
   }
@@ -277,11 +273,7 @@ function applyRoleUI() {
     }
   }
 
-  // --- Export button/modal ---
-  // Behavior you asked for:
-  // - guest: no export at all (hide button)
-  // - viewer: can open export but ONLY "files" option should be selectable
-  // - admin: full export menu
+
 
   if (exportOpenBtn) {
     if (isGuest) {
@@ -291,8 +283,6 @@ function applyRoleUI() {
     }
   }
 
-  // We'll also restrict the export modal's radio buttons when it opens.
-  // We'll handle that below in openExportModal().
 
   // --- Logout button visibility ---
   if (logoutBtn) {
@@ -304,9 +294,6 @@ function applyRoleUI() {
     }
   }
 
-  // --- Header user text ---
-  // your updateHeaderUserInfo() already handles this using currentUser,
-  // but if you want guest to say "Guest (read-only)" you can tweak:
   if (isGuest) {
     sessionUserInfoEl.textContent = "Guest (read-only)";
   }
@@ -501,7 +488,7 @@ async function updateFooterStats() {
     const activeLabel =
       `${activeCount} active file${activeCount === 1 ? '' : 's'}`;
 
-    // if viewer/guest we intentionally don't show archived
+    // if viewer/guest intentionally don't show archived
     const archivedLabel = (archivedCount === null || archivedCount === undefined)
       ? ""
       : `${archivedCount} archived`;
@@ -511,13 +498,11 @@ async function updateFooterStats() {
 
     document.getElementById('footerActiveCount').textContent = activeLabel;
 
-    // Gracefully hide the bullet + text if archived is hidden
+
     const archivedEl = document.getElementById('footerArchivedCount');
     const bullets = document.querySelectorAll('.footer-separator');
     if (archivedLabel === "") {
       if (archivedEl) archivedEl.textContent = "";
-      // hide the middle bullet(s) if you want to be tidy for viewers
-      // simplest: just blank them, don't remove nodes
       bullets.forEach(b => {
         if (b.previousElementSibling?.id === 'footerActiveCount') {
           b.textContent = "";
@@ -579,8 +564,7 @@ form.addEventListener('submit', async (e) => {
     alert('Item added.');
     form.reset();
     closeAddFileModal();
-    // For now your list may still be /api/files; that’s fine.
-    // When you flip, call a new loadItems() or point loadFiles() to /api/items.
+
     await loadFiles();
 
   } catch (err) {
@@ -589,8 +573,6 @@ form.addEventListener('submit', async (e) => {
 });
 
 function updatePagerUI(page, pageSize, total) {
-  // total pages:
-  // we do math carefully: maxPage = ceil(total / pageSize), but guard 0
   const safePageSize = pageSize > 0 ? pageSize : 1;
   const maxPage = Math.max(1, Math.ceil(total / safePageSize));
 
@@ -658,8 +640,6 @@ async function loadFiles() {
       credentials: 'include',
     });
     if (!res.ok) throw new Error(await res.text());
-
-    // IMPORTANT: after pagination backend, this is now an object
     data = await res.json();
     // expected: { items: [...], page, page_size, total }
   } catch (err) {
@@ -710,8 +690,6 @@ async function loadFiles() {
     let prevCheckoutDisp = "—"; // default = nothing to show
 
     if (f.currently_held_by) {
-      // Item is currently OUT.
-      // We expect to have f.date_of_checkout for this active movement.
       if (f.date_of_checkout) {
         prevCheckoutDisp = `
           <span style="color:#a11; font-weight:500;">↗</span>
@@ -719,12 +697,7 @@ async function loadFiles() {
         `;
       }
     } else {
-      // Item is currently IN.ß
-      // Only show green arrow if we actually have a recorded return.
-      // Depending on what you're returning from the API, use either:
-      //   f.last_return_at   (if you expose "last time it was returned")
-      // OR
-      //   f.last_movement_ts (if you use the CASE expression)
+
       const lastReturnTs = f.last_return_at || f.last_movement_ts;
 
       if (lastReturnTs) {
@@ -859,7 +832,7 @@ function openReturnModal(fileId) {
   modalFileId = fileId;
 
   modalTitleEl.textContent = "Return File";
-  holderFieldEl.style.display = "none"; // you don't choose a new holder on return
+  holderFieldEl.style.display = "none"; // don't choose a new holder on return
 
   modalHolderInput.value = "";
   modalNoteInput.value = "";
@@ -1136,7 +1109,7 @@ if (tabManualBtn && tabImportBtn) {
 }
 
 function openAddFileModal() {
-  // whenever we open, we want to start in Manual tab (most common flow)
+  // start in Manual tab (most common flow)
   activateManualTab();
 
   // reset manual form fields
@@ -1250,8 +1223,6 @@ function openExportModal() {
   const radioAll        = document.querySelector('input[value="all"][name="exportType"]');
 
   if (!isadmin) {
-    // viewer (or guest if they somehow got here):
-    // - they can only download "files"
     if (radioFiles) {
       radioFiles.disabled = false;
       radioFiles.checked = true;
@@ -1380,12 +1351,12 @@ document.querySelectorAll('th.sortable').forEach(th => {
   try {
     const pageSizePref = localStorage.getItem('FMS_PREF_PAGE_SIZE');
     if (pageSizePref) {
-      // If you want PAGE_SIZE to be dynamic, turn const into let at top
+
       if (typeof PAGE_SIZE !== "undefined") {
-        // Replace only if numeric and sane
+
         const n = parseInt(pageSizePref, 10);
         if (Number.isFinite(n) && n > 0 && n <= 500) {
-          // You declared PAGE_SIZE as const; change it to let to allow this:
+
           window.PAGE_SIZE = n;
         }
       }
@@ -1414,7 +1385,7 @@ function readDefaultShowDeleted() {
 
 //IIFE
 (async () => {
-  await fetchSession();        // if not logged in, currentUser stays null, role UI becomes guest
+  await fetchSession();        
   updateHeaderUserInfo();      // will just be blank for guest
 
   if (!currentUser) {

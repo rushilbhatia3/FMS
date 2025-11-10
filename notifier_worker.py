@@ -34,7 +34,7 @@ def send_overdue_email(to_email: str, rows: list[dict]):
         s.send_message(msg)
 
 def overdue_scan_job():
-    # Atomically take ownership of work first
+
     claimed = db.claim_overdue_checkouts()
     if not claimed:
         return
@@ -49,14 +49,10 @@ def overdue_scan_job():
 
 def main():
     sched = BackgroundScheduler(timezone="UTC")
-    # Run every minute; respect dynamic cadence inside the job loop
-    # by simply scheduling at 1-min and not doing internal throttling.
-    # Alternatively, re-read settings and reschedule when cadence changes.
     sched.add_job(overdue_scan_job, "interval", minutes=1, id="overdue-scan")
     sched.start()
     print("[worker] notifier started (tick = 1 min); uses settings.reminder_freq_minutes to pace scans")
 
-    # Optional: pace with settings cadence by sleeping; simplest approach:
     try:
         while True:
             time.sleep(3600)  # scheduler runs in background
