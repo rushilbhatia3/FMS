@@ -28,7 +28,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[Literal["admin", "user"]] = None
     password: Optional[str] = None
-    max_clearance_level: Optional[Optional[int]] = None  # allow nulling to unlimited
+    max_clearance_level: Optional[Optional[int]] = None  
 
 
 class UserPublic(BaseModel):
@@ -47,12 +47,10 @@ class UserAdminView(UserPublic):
 def list_users(current=Depends(get_current_user)):
     rows = db.db_read("SELECT id, email, name, role, max_clearance_level, created_at FROM users ORDER BY created_at DESC")
     if current["role"] == "admin":
-        # Return richer data to admins
         return [
             {
                 "email": r["email"],
                 "role": r["role"],
-                # Pydantic response_model enforces shape; admins can use /users/admin for full detail if needed
             }
             for r in rows
         ]

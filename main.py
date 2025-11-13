@@ -46,11 +46,7 @@ def create_app() -> FastAPI:
     # ---------- Static frontend ----------
     frontend_dir = (pathlib.Path(__file__).parent / "Frontend").resolve()
 
-    # Place AFTER API includes so /api/* keeps working.
     app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
-
-    # Explicit root route to index.html (helps some servers & makes intent clear)
-
     return app
 
 

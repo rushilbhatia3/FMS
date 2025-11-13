@@ -82,3 +82,34 @@
 .role-admin    { background:#ffe5d3; color:#653010; border-color:#f1c09c; }
 .role-operator { background:#d9eaff; color:#113a6b; border-color:#b4d3f6; }
 .role-user     { background:#e6e6e6; color:#2f2f2f; border-color:#bfbfbf; }
+
+
+/* =========================================================
+   ADMIN TOPBAR (Back button)
+   ========================================================= */
+.admin-topbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0.75rem 1rem 0.5rem;
+  background: #fafafa;
+  border-bottom: 1px solid var(--line);
+}
+
+#backToCatalogBtn {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #222;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 0.45rem 0.8rem;
+  transition: all 0.15s ease;
+}
+
+#backToCatalogBtn:hover {
+  background: #f2f2f2;
+  border-color: #999;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}

@@ -383,7 +383,7 @@ WITH ranked AS (
   SELECT
     m.id,
     m.item_id,
-    m.type,
+    m.type AS movement_type, 
     m.qty,
     m.shelf_id,
     m.holder,
@@ -395,10 +395,11 @@ WITH ranked AS (
   FROM movements m
 )
 SELECT
-  id, item_id, type, qty, shelf_id, holder, due_at, actor_user_id, note, timestamp
+  id, item_id, movement_type, qty, shelf_id, holder, due_at, actor_user_id, note, timestamp
 FROM ranked
 WHERE rn <= 10
 ORDER BY item_id, timestamp DESC, id DESC;
+
 
 
 ---------- new update to include shelf_id ----------
@@ -446,6 +447,11 @@ BEGIN
   UPDATE items SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
 END;
 
+ALTER TABLE systems ADD COLUMN deleted_at TEXT;
+
+--new things we have added and run as a seperate script to ensure the data in the table stays as is
+ALTER TABLE movements ADD COLUMN xfer_key TEXT;        -- nullable; only set for transfers
+CREATE INDEX IF NOT EXISTS idx_movements_xfer ON movements(xfer_key, item_id, timestamp);
 
 """    
     
@@ -453,19 +459,211 @@ END;
 def executor(executee):
     with db._connect() as cursor: 
         print(cursor.executescript(executee))
-    
+
+
+scriptadd1= """
+-- ALTER TABLE movements ADD COLUMN xfer_key TEXT;      nullable; only set for transfers
+-- CREATE INDEX IF NOT EXISTS idx_movements_xfer ON movements(xfer_key, item_id, timestamp);
+
+--CREATE UNIQUE INDEX IF NOT EXISTS ux_items_sku ON items(sku);
+-- ALTER TABLE items ADD COLUMN system_code TEXT;
+-- ALTER TABLE items ADD COLUMN shelf_label TEXT;
+-- ALTER TABLE items ADD COLUMN quantity INTEGER DEFAULT 0;
+--CREATE UNIQUE INDEX IF NOT EXISTS ux_items_sku ON items(sku);
+
+CREATE TABLE IF NOT EXISTS holder_index (
+  holder_norm TEXT NOT NULL,   -- lowercased, for case-insensitive search
+  holder      TEXT NOT NULL,   -- original casing, for display / debugging
+  item_id     INTEGER NOT NULL,
+  qty_out     INTEGER NOT NULL,
+  PRIMARY KEY (holder_norm, item_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_holder_index_item
+  ON holder_index(item_id);
+
+CREATE INDEX IF NOT EXISTS idx_holder_index_qty
+  ON holder_index(qty_out);
+
+-- 2) Trigger: after each movement, recompute the holder index for that item
+DROP TRIGGER IF EXISTS trg_holder_index_rebuild;
+
+CREATE TRIGGER trg_holder_index_rebuild
+AFTER INSERT ON movements
+BEGIN
+  -- Clear existing index rows for this item
+  DELETE FROM holder_index WHERE item_id = NEW.item_id;
+
+  -- Rebuild from the full movement history for this item
+  INSERT INTO holder_index (holder_norm, holder, item_id, qty_out)
+  SELECT
+    LOWER(COALESCE(m.holder_name, m.holder))         AS holder_norm,
+    COALESCE(m.holder_name, m.holder)                AS holder,
+    m.item_id                                        AS item_id,
+    SUM(
+      CASE
+        WHEN m.type = 'issue'  THEN -m.qty   -- issues take stock out
+        WHEN m.type = 'return' THEN  m.qty   -- returns bring it back
+        ELSE 0
+      END
+    ) AS qty_out
+  FROM movements m
+  WHERE m.item_id = NEW.item_id
+    AND COALESCE(m.holder_name, m.holder) IS NOT NULL
+  GROUP BY holder_norm, holder, m.item_id
+  HAVING qty_out > 0;   -- only keep holders who currently have something out
+END;
+"""
+
+
+NewAdd="""
+
+ALTER TABLE movements
+ADD COLUMN holder_name TEXT;
+UPDATE movements
+SET holder_name = holder
+WHERE holder_name IS NULL
+  AND holder IS NOT NULL;
+  
+CREATE TABLE IF NOT EXISTS holder_index (
+holder_norm TEXT NOT NULL,         -- lowercased normalized name
+holder      TEXT NOT NULL,         -- display/original name
+item_id     INTEGER NOT NULL,
+qty_out     INTEGER NOT NULL,      -- how many units currently out with this holder
+
+PRIMARY KEY (holder_norm, item_id),
+FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_holder_index_holder_norm
+  ON holder_index(holder_norm);
+
+CREATE INDEX IF NOT EXISTS idx_holder_index_item_id
+  ON holder_index(item_id);
+  
+
+--   For a given item_id, sum:
+--     +qty for type='issue'   (stock issued to holder)
+--     -qty for type='return'  (stock returned from holder)
+--   Only keep rows where qty_out > 0
+--
+--   We always use COALESCE(holder_name, holder) so:
+--     - new rows can use holder_name
+--     - old rows from before the column existed still work
+
+
+
+--After INSERT:
+CREATE TRIGGER IF NOT EXISTS trg_holder_index_ai
+AFTER INSERT ON movements
+BEGIN
+  DELETE FROM holder_index
+  WHERE item_id = NEW.item_id;
+
+  INSERT INTO holder_index (holder_norm, holder, item_id, qty_out)
+  SELECT
+    LOWER(COALESCE(holder_name, holder))      AS holder_norm,
+    COALESCE(holder_name, holder)             AS holder,
+    item_id                                   AS item_id,
+    SUM(
+      CASE
+        WHEN type = 'issue'  THEN qty
+        WHEN type = 'return' THEN -qty
+        ELSE 0
+      END
+    )                                         AS qty_out
+  FROM movements
+  WHERE item_id = NEW.item_id
+    AND COALESCE(holder_name, holder) IS NOT NULL
+  GROUP BY holder_norm, holder, item_id
+  HAVING qty_out > 0;
+END;
+
+
+--After UPDATE:
+CREATE TRIGGER IF NOT EXISTS trg_holder_index_au
+AFTER UPDATE ON movements
+BEGIN
+  DELETE FROM holder_index
+  WHERE item_id = NEW.item_id;
+
+  INSERT INTO holder_index (holder_norm, holder, item_id, qty_out)
+  SELECT
+    LOWER(COALESCE(holder_name, holder))      AS holder_norm,
+    COALESCE(holder_name, holder)             AS holder,
+    item_id                                   AS item_id,
+    SUM(
+      CASE
+        WHEN type = 'issue'  THEN qty
+        WHEN type = 'return' THEN -qty
+        ELSE 0
+      END
+    )                                         AS qty_out
+  FROM movements
+  WHERE item_id = NEW.item_id
+    AND COALESCE(holder_name, holder) IS NOT NULL
+  GROUP BY holder_norm, holder, item_id
+  HAVING qty_out > 0;
+END;
+
+-- After Delete
+CREATE TRIGGER IF NOT EXISTS trg_holder_index_ad
+AFTER DELETE ON movements
+BEGIN
+  DELETE FROM holder_index
+  WHERE item_id = OLD.item_id;
+
+  INSERT INTO holder_index (holder_norm, holder, item_id, qty_out)
+  SELECT
+    LOWER(COALESCE(holder_name, holder))      AS holder_norm,
+    COALESCE(holder_name, holder)             AS holder,
+    item_id                                   AS item_id,
+    SUM(
+      CASE
+        WHEN type = 'issue'  THEN qty
+        WHEN type = 'return' THEN -qty
+        ELSE 0
+      END
+    )                                         AS qty_out
+  FROM movements
+  WHERE item_id = OLD.item_id
+    AND COALESCE(holder_name, holder) IS NOT NULL
+  GROUP BY holder_norm, holder, item_id
+  HAVING qty_out > 0;
+END;
+
+
+--One time rebuild
+DELETE FROM holder_index;
+
+INSERT INTO holder_index (holder_norm, holder, item_id, qty_out)
+SELECT
+  LOWER(COALESCE(holder_name, holder))      AS holder_norm,
+  COALESCE(holder_name, holder)             AS holder,
+  item_id                                   AS item_id,
+  SUM(
+    CASE
+      WHEN type = 'issue'  THEN qty
+      WHEN type = 'return' THEN -qty
+      ELSE 0
+    END
+  )                                         AS qty_out
+FROM movements
+WHERE COALESCE(holder_name, holder) IS NOT NULL
+GROUP BY holder_norm, holder, item_id
+HAVING qty_out > 0;
+
+"""
 
 
 def reset_users():
     print(" Resetting all users...")
     with closing(db.get_conn()) as conn, conn:
-        # 1️⃣  Drop all existing users
+        # Drop all existing users
         conn.execute("DELETE FROM users;")
-
-        # 2️⃣  Optionally reset auto-increment counter
         conn.execute("DELETE FROM sqlite_sequence WHERE name='users';")
 
-        # 3️⃣  Define your new base users
+        #new base users
         seed_users = [
             {
                 "email": "admin@hocc.com",
@@ -474,7 +672,7 @@ def reset_users():
             },
             {
                 "email": "rushil@hocc.com",
-                "password": "Bread@1234",
+                "password": "Hocc@123",
                 "role": "admin",
             },
             {
@@ -484,7 +682,7 @@ def reset_users():
             },
         ]
 
-        # 4️⃣  Insert them with bcrypt hashes
+        #Insert with bcrypt hashes
         for u in seed_users:
             pw_hash = bcrypt.hashpw(u["password"].encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             conn.execute(
@@ -494,4 +692,4 @@ def reset_users():
         print(f"✅  Inserted {len(seed_users)} users.")
 
 #reset_users()
-executor(MainScript)
+executor(NewAdd)

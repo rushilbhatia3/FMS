@@ -81,7 +81,7 @@ export const core = (() => {
   }
   function toast(msg, type = "info") {
     console.log(`[${type}]`, msg);
-    // You can hook your existing toast UI here.
+    //hook toast UI here.
   }
 
   // ---------- Persist (filters, etc.) ----------

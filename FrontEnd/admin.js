@@ -1,247 +1,326 @@
-async function apiJSON(method, url, body) {
-  const opts = { method, credentials: "include", headers: {} };
-  if (body !== undefined && body !== null) {
-    opts.headers["Content-Type"] = "application/json";
-    opts.body = JSON.stringify(body);
-  }
-  const res = await fetch(url, opts);
-  if (!res.ok) {
-    let msg = `${res.status} ${res.statusText}`;
-    try {
-      const j = await res.json();
-      if (j && j.detail) msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
-    } catch {}
-    throw new Error(msg);
-  }
-  return res.status === 204 ? null : res.json();
-}
+// admin.js
+import { core } from "./core.js";
 
-function $(id) { return document.getElementById(id); }
+export const Admin = (() => {
+  let systemsCache = [];
+  let shelvesCache = [];
 
-async function loadSystems() {
-  const tbody = $("systemsTable");
-  if (!tbody) return;
-  tbody.innerHTML = `<tr><td>Loading…</td></tr>`;
-  try {
-    const systems = await apiJSON("GET", "/api/systems");
-    if (!Array.isArray(systems) || systems.length === 0) {
-      tbody.innerHTML = `<tr><td>No systems yet.</td></tr>`;
+  const el = {
+    // systems
+    systemsTable:  document.getElementById("systemsTable"),
+    systemForm:    document.getElementById("systemForm"),
+
+    // shelves
+    shelvesTable:  document.getElementById("shelvesTable"),
+    shelfForm:     document.getElementById("shelfForm"),
+    shelfSysSel:   document.getElementById("shelf_system_id"),
+
+    // admin-only controls
+    incDel:        document.getElementById("include_deleted_admin"),
+    backBtn:       document.getElementById("backToCatalogBtn"),
+  };
+
+  // ------------- Admin "Show deleted" prefs (independent of catalogue) -------------
+  function getIncludeDeletedPref() {
+    const prefs = core.persist.get("admin_prefs", { include_deleted: false });
+    return !!prefs.include_deleted;
+  }
+  function setIncludeDeletedPref(v) {
+    const next = { ...(core.persist.get("admin_prefs", {})), include_deleted: !!v };
+    core.persist.set("admin_prefs", next);
+    // Broadcast so other parts can react if needed.
+    core.bus.emit("admin:include_deleted_changed", { include_deleted: !!v });
+  }
+  function hydrateIncDelToggle(checked) {
+    if (!el.incDel) return;
+    el.incDel.checked = !!checked;
+    el.incDel.setAttribute("aria-checked", checked ? "true" : "false");
+  }
+
+  // ---------------- Utilities ----------------
+  function optionifySystems(selectEl) {
+    if (!selectEl) return;
+    const prev = selectEl.value;
+    selectEl.innerHTML =
+      `<option value="" disabled selected>Choose a system</option>` +
+      systemsCache.map(s => `<option value="${s.id}">${s.code}</option>`).join("");
+    if (prev && systemsCache.some(s => String(s.id) === String(prev))) {
+      selectEl.value = prev;
+    }
+  }
+
+  function sysById(id) {
+    return systemsCache.find(s => String(s.id) === String(id));
+  }
+
+  // ---------------- Loaders ----------------
+  async function loadSystems(include_deleted) {
+    // Admin lists honor its own toggle
+    systemsCache = await core.api.get("/api/systems", { include_deleted: !!include_deleted }).catch(() => []);
+    optionifySystems(el.shelfSysSel);       // Keep the form’s select fresh
+    renderSystemsTable(systemsCache);
+  }
+
+  async function loadShelves(include_deleted) {
+    const rows = await core.api.get("/api/shelves", { include_deleted: !!include_deleted }).catch(() => []);
+    shelvesCache = Array.isArray(rows) ? rows : [];
+    renderShelvesTable(shelvesCache);
+  }
+
+  // ---------------- Renderers ----------------
+  function renderSystemsTable(rows = []) {
+    if (!el.systemsTable) return;
+
+    if (!rows.length) {
+      el.systemsTable.innerHTML = `<tr><td>No systems yet.</td></tr>`;
       return;
     }
-    tbody.innerHTML = systems.map(s => {
-      const delText = s.is_deleted ? "Restore" : "Delete";
-      const delTitle = s.is_deleted ? "Restore system" : "Soft delete system";
-      return `<tr data-id="${s.id}">
-        <td><strong>${s.code}</strong></td>
-        <td>${s.notes || ""}</td>
-        <td style="white-space:nowrap;">
-          <button class="adm-edit" data-kind="system">Edit</button>
-          <button class="adm-del" data-kind="system" title="${delTitle}">${delText}</button>
-        </td>
-      </tr>`;
-    }).join("");
-  } catch (e) {
-    tbody.innerHTML = `<tr><td style="color:#a11;">Failed to load systems: ${String(e.message || e)}</td></tr>`;
-  }
-}
 
-async function loadShelves() {
-  const tbody = $("shelvesTable");
-  if (!tbody) return;
-  tbody.innerHTML = `<tr><td>Loading…</td></tr>`;
-  try {
-    // If you want filter by system, add a <select> and pass ?system_id=…
-    const shelves = await apiJSON("GET", "/api/shelves");
-    if (!Array.isArray(shelves) || shelves.length === 0) {
-      tbody.innerHTML = `<tr><td>No shelves yet.</td></tr>`;
+    el.systemsTable.innerHTML = rows.map(r => {
+      const isDel = Number(r.is_deleted ?? 0) === 1;
+      return `
+        <tr data-id="${r.id}" class="${isDel ? "row-deleted" : ""}">
+          <td><strong>${r.code}</strong></td>
+          <td>${r.notes ?? ""}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-compact adm-edit" data-kind="system">Edit</button>
+            <button class="btn btn-compact adm-del" data-kind="system" title="${isDel ? "Restore system" : "Soft delete system"}">
+              ${isDel ? "Restore" : "Delete"}
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    el.systemsTable.onclick = async (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const tr = btn.closest("tr[data-id]");
+      if (!tr) return;
+      const id = tr.dataset.id;
+
+      if (btn.classList.contains("adm-edit")) {
+        const row = systemsCache.find(s => String(s.id) === String(id));
+        if (!row || !el.systemForm) return;
+        el.systemForm.elements.id.value    = row.id;
+        el.systemForm.elements.code.value  = row.code;
+        el.systemForm.elements.notes.value = row.notes ?? "";
+        el.systemForm.scrollIntoView({ behavior: "smooth" });
+      }
+
+      if (btn.classList.contains("adm-del")) {
+        const wantsRestore = /restore/i.test(btn.textContent || "");
+        try {
+          if (wantsRestore) {
+            await core.api.post(`/api/systems/${id}/restore`, {});
+          } else {
+            await core.api.del(`/api/systems/${id}`);
+          }
+          const inc = getIncludeDeletedPref();
+          await loadSystems(inc);
+          await loadShelves(inc); // shelf visibility can change with system delete/restore
+        } catch (err) {
+          core.toast(String(err.message || err), "error");
+        }
+      }
+    };
+  }
+
+  function renderShelvesTable(rows = []) {
+    if (!el.shelvesTable) return;
+
+    if (!rows.length) {
+      el.shelvesTable.innerHTML = `<tr><td>No shelves yet.</td></tr>`;
       return;
     }
-    tbody.innerHTML = shelves.map(sh => {
-      const dims = [sh.length_mm, sh.width_mm, sh.height_mm].map(v => v ?? "—").join(" × ");
-      const delText = sh.is_deleted ? "Restore" : "Delete";
-      const delTitle = sh.is_deleted ? "Restore shelf" : "Soft delete shelf";
-      return `<tr data-id="${sh.id}">
-        <td><strong>${sh.label}</strong></td>
-        <td>${sh.system_code || sh.system_id}</td>
-        <td>${dims}</td>
-        <td>${sh.ordinal ?? 0}</td>
-        <td style="white-space:nowrap;">
-          <button class="adm-edit" data-kind="shelf">Edit</button>
-          <button class="adm-del" data-kind="shelf" title="${delTitle}">${delText}</button>
-        </td>
-      </tr>`;
+
+    el.shelvesTable.innerHTML = rows.map(r => {
+      const sys = sysById(r.system_id);
+      const dims = [r.length_mm, r.width_mm, r.height_mm].map(v => v ?? "—").join(" × ");
+      const isDel = Number(r.is_deleted ?? 0) === 1;
+      return `
+        <tr data-id="${r.id}" class="${isDel ? "row-deleted" : ""}">
+          <td>${sys ? sys.code : `#${r.system_id}`}</td>
+          <td><strong>${r.label}</strong></td>
+          <td>${dims}</td>
+          <td>${r.ordinal ?? "—"}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-compact adm-edit" data-kind="shelf">Edit</button>
+            <button class="btn btn-compact adm-del" data-kind="shelf" title="${isDel ? "Restore shelf" : "Soft delete shelf"}">
+              ${isDel ? "Restore" : "Delete"}
+            </button>
+          </td>
+        </tr>
+      `;
     }).join("");
-  } catch (e) {
-    tbody.innerHTML = `<tr><td style="color:#a11;">Failed to load shelves: ${String(e.message || e)}</td></tr>`;
+
+    el.shelvesTable.onclick = async (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const tr = btn.closest("tr[data-id]");
+      if (!tr) return;
+      const id = tr.dataset.id;
+
+      if (btn.classList.contains("adm-edit")) {
+        try {
+          const sh = await core.api.get(`/api/shelves/${id}`);
+          optionifySystems(el.shelfSysSel);
+          const f = el.shelfForm.elements;
+          f.id.value         = sh.id;
+          f.system_id.value  = sh.system_id;
+          f.label.value      = sh.label;
+          f.length_mm.value  = sh.length_mm ?? "";
+          f.width_mm.value   = sh.width_mm ?? "";
+          f.height_mm.value  = sh.height_mm ?? "";
+          f.ordinal.value    = sh.ordinal ?? "";
+          el.shelfForm.scrollIntoView({ behavior: "smooth" });
+        } catch (err) {
+          core.toast(String(err.message || err), "error");
+        }
+      }
+
+      if (btn.classList.contains("adm-del")) {
+        const wantsRestore = /restore/i.test(btn.textContent || "");
+        try {
+          if (wantsRestore) {
+            await core.api.post(`/api/shelves/${id}/restore`, {});
+          } else {
+            await core.api.del(`/api/shelves/${id}`);
+          }
+          const inc = getIncludeDeletedPref();
+          await loadShelves(inc);
+        } catch (err) {
+          core.toast(String(err.message || err), "error");
+        }
+      }
+    };
   }
-}
 
-function bindSystemForm() {
-  const form = $("systemForm");
-  if (!form) return;
+  // ---------------- Forms ----------------
+  function bindSystemForm() {
+    if (!el.systemForm) return;
+    el.systemForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(el.systemForm);
+      const id    = (fd.get("id")    || "").toString().trim();
+      const code  = (fd.get("code")  || "").toString().trim();
+      const notes = (fd.get("notes") || "").toString().trim();
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const data = Object.fromEntries(new FormData(form).entries());
-    const id = (data.id || "").trim();
-    const payload = {
-      code: (data.code || "").trim(),
-      notes: (data.notes || "").trim(),
-    };
-    try {
-      if (!payload.code) throw new Error("Code is required.");
-      if (id) {
-        await apiJSON("PUT", `/api/systems/${id}`, payload);
-      } else {
-        await apiJSON("POST", "/api/systems", payload);
-      }
-      form.reset();
-      await loadSystems();
-    } catch (err) {
-      alert(`System save failed: ${String(err.message || err)}`);
-    }
-  });
+      if (!code) { core.toast("System code is required.", "error"); return; }
 
-  // Row edit/delete/restore actions
-  $("systemsTable")?.addEventListener("click", async (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    const tr = e.target.closest("tr[data-id]");
-    if (!tr) return;
-    const id = tr.getAttribute("data-id");
-    const kind = btn.dataset.kind;
-
-    if (btn.classList.contains("adm-edit") && kind === "system") {
-      // hydrate form with row values
-      const cells = tr.querySelectorAll("td");
-      form.elements.id.value = id;
-      form.elements.code.value = cells[0].innerText.trim();
-      form.elements.notes.value = cells[1].innerText.trim();
-      form.scrollIntoView({ behavior: "smooth" });
-    }
-    if (btn.classList.contains("adm-del") && kind === "system") {
-      const text = btn.textContent.toLowerCase();
       try {
-        if (text.includes("restore")) {
-          await apiJSON("POST", `/api/systems/${id}/restore`, {});
+        if (id) {
+          await core.api.put(`/api/systems/${id}`, { code, notes });
         } else {
-          // soft-delete; backend should cascade to shelves/items as soft delete
-          await apiJSON("DELETE", `/api/systems/${id}`, null);
+          await core.api.post(`/api/systems`, { code, notes });
         }
-        await loadSystems();
-        await loadShelves(); // keep shelves list in sync
+        core.toast("System saved", "success");
+        el.systemForm.reset();
+        const inc = getIncludeDeletedPref();
+        await loadSystems(inc);
+        await loadShelves(inc);   // show updated system codes in shelves table
       } catch (err) {
-        alert(`System ${text} failed: ${String(err.message || err)}`);
+        core.toast(String(err.message || err), "error");
       }
-    }
-  });
-}
+    });
+  }
 
-function bindShelfForm() {
-  const form = $("shelfForm");
-  if (!form) return;
+  function bindShelfForm() {
+    if (!el.shelfForm) return;
+    optionifySystems(el.shelfSysSel);
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const data = Object.fromEntries(new FormData(form).entries());
-    const id = (data.id || "").trim();
+    el.shelfForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(el.shelfForm);
 
-    const payload = {
-      system_id: Number(data.system_id || 0),
-      label: (data.label || "").trim(),
-      length_mm: data.length_mm ? Number(data.length_mm) : null,
-      width_mm:  data.width_mm  ? Number(data.width_mm)  : null,
-      height_mm: data.height_mm ? Number(data.height_mm) : null,
-      ordinal:   data.ordinal   ? Number(data.ordinal)   : 0,
-    };
+      const id         = (fd.get("id") || "").toString().trim();
+      const system_id  = Number(fd.get("system_id") || 0);
+      const label      = (fd.get("label") || "").toString().trim();
+      const length_mm  = Number(fd.get("length_mm") || 0);
+      const width_mm   = Number(fd.get("width_mm")  || 0);
+      const height_mm  = Number(fd.get("height_mm") || 0);
+      const ordinalRaw = fd.get("ordinal");
+      const ordinal    = (ordinalRaw === null || ordinalRaw === "") ? null : Number(ordinalRaw);
 
-    try {
-      if (!payload.system_id) throw new Error("System ID is required.");
-      if (!payload.label) throw new Error("Shelf label is required.");
-      if (id) {
-        await apiJSON("PUT", `/api/shelves/${id}`, payload);
-      } else {
-        await apiJSON("POST", "/api/shelves", payload);
+      if (!system_id) { core.toast("Please choose a system.", "error"); return; }
+      if (!label)     { core.toast("Shelf label is required.", "error"); return; }
+      if (!length_mm || !width_mm || !height_mm) {
+        core.toast("Length, width, and height are required.", "error"); return;
       }
-      form.reset();
-      await loadShelves();
-    } catch (err) {
-      alert(`Shelf save failed: ${String(err.message || err)}`);
-    }
-  });
 
-  $("shelvesTable")?.addEventListener("click", async (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    const tr = e.target.closest("tr[data-id]");
-    if (!tr) return;
-    const id = tr.getAttribute("data-id");
-    const kind = btn.dataset.kind;
+      const payload = { system_id, label, length_mm, width_mm, height_mm };
+      if (ordinal !== null && !Number.isNaN(ordinal)) payload.ordinal = ordinal;
 
-    if (btn.classList.contains("adm-edit") && kind === "shelf") {
-      // Minimal re-fetch to get canonical values
       try {
-        const sh = await apiJSON("GET", `/api/shelves/${id}`);
-        const f = form.elements;
-        f.id.value = sh.id;
-        f.system_id.value = sh.system_id;
-        f.label.value = sh.label;
-        f.length_mm.value = sh.length_mm ?? "";
-        f.width_mm.value  = sh.width_mm ?? "";
-        f.height_mm.value = sh.height_mm ?? "";
-        f.ordinal.value   = sh.ordinal ?? 0;
-        form.scrollIntoView({ behavior: "smooth" });
-      } catch (err) {
-        alert(`Load shelf failed: ${String(err.message || err)}`);
-      }
-    }
-    if (btn.classList.contains("adm-del") && kind === "shelf") {
-      const text = btn.textContent.toLowerCase();
-      try {
-        if (text.includes("restore")) {
-          await apiJSON("POST", `/api/shelves/${id}/restore`, {});
+        if (id) {
+          await core.api.put(`/api/shelves/${id}`, payload);
         } else {
-          await apiJSON("DELETE", `/api/shelves/${id}`, null);
+          await core.api.post(`/api/shelves`, payload);
         }
-        await loadShelves();
+        core.toast("Shelf saved", "success");
+        el.shelfForm.reset();
+        // keep last selected system for quicker entry
+        el.shelfSysSel.value = String(system_id);
+        const inc = getIncludeDeletedPref();
+        await loadShelves(inc);
       } catch (err) {
-        alert(`Shelf ${text} failed: ${String(err.message || err)}`);
+        core.toast(String(err.message || err), "error");
       }
-    }
-  });
-}
+    });
+  }
 
-// Small “Back to Catalog” affordance (appears only for admins via button in header)
-function ensureBackFromAdmin() {
-  const section = document.getElementById("adminSection");
-  if (!section) return;
-  if (section._backBound) return;
+  // ---------------- Back button ----------------
+  function bindBackButton() {
+    const btn = el.backBtn;
+    if (!btn || btn._bound) return;
+    btn.addEventListener("click", () => {
+      const app = document.getElementById("appSection");
+      const admin = document.getElementById("adminSection");
+      if (app) app.hidden = false;
+      if (admin) admin.hidden = true;
+      core.toast("Returned to Catalog", "info");
+    });
+    btn._bound = true;
+  }
 
-  const bar = document.createElement("div");
-  bar.style.cssText = "display:flex;justify-content:flex-end;padding:0 1rem 0.5rem;";
-  bar.innerHTML = `<button id="backToCatalogBtn" class="btn">Back to Catalog</button>`;
-  section.prepend(bar);
+  // ---------------- Toggle + bus wiring ----------------
+  function bindAdminToggleAndBus() {
+    //user flips the Admin toggle -> persist + reload lists 
+    el.incDel?.addEventListener("change", async () => {
+      const inc = !!el.incDel.checked;
+      setIncludeDeletedPref(inc);
+      await loadAdminLists({ include_deleted: inc });
+    });
 
-  bar.querySelector("#backToCatalogBtn").addEventListener("click", () => {
-    const app = document.getElementById("appSection");
-    if (app) app.hidden = false;
-    section.hidden = true;
-  });
+    //after login or Admin button, sync + reload.
+    core.bus.on("admin:include_deleted_changed", async ({ include_deleted }) => {
+      hydrateIncDelToggle(!!include_deleted);
+      await loadAdminLists({ include_deleted });
+    });
+  }
 
-  section._backBound = true;
-}
+  // ---------------- Public API ----------------
+  async function loadAdminLists(opts = {}) {
+    const include_deleted = opts.include_deleted ?? getIncludeDeletedPref();
+    await Promise.all([loadSystems(include_deleted), loadShelves(include_deleted)]);
+  }
 
-async function loadAdminLists() {
-  ensureBackFromAdmin();
-  await Promise.all([loadSystems(), loadShelves()]);
-}
+  function init() {
+    // Initial setting of the toggle
+    hydrateIncDelToggle(getIncludeDeletedPref());
 
-function initAdmin() {
-  bindSystemForm();
-  bindShelfForm();
-}
+    bindSystemForm();
+    bindShelfForm();
+    bindBackButton();
+    bindAdminToggleAndBus();
+  }
 
-initAdmin();
+  return { init, loadAdminLists };
+})();
 
-// Expose a tiny namespace so app.js can lazy-load lists when entering Admin
-window.Admin = { loadAdminLists };
+// Initialize once DOM is ready
+document.addEventListener("DOMContentLoaded", () => {
+  if (window.Admin?.init === Admin.init) return; // avoid double-init on hot reload
+  Admin.init();
+  window.Admin = Admin; // allow app.js to call Admin.loadAdminLists()
+});

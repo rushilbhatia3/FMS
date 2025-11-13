@@ -2,39 +2,79 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Warehouse Management System</title>
 
-  <!-- App styles -->
-  <link rel="stylesheet" href="./style.css" />
+  <!-- Styles -->
   <link rel="stylesheet" href="./settings.css" />
-
+  <link rel="stylesheet" href="./style.css" />
   <link rel="icon" href="./favicon.png" type="image/png" />
   <meta name="theme-color" content="#ffffff" />
 
-  <!-- Day.js for timestamp formatting -->
+  <!-- Day.js -->
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
-  <script>
-    dayjs.extend(window.dayjs_plugin_relativeTime);
-  </script>
+  <script>dayjs.extend(window.dayjs_plugin_relativeTime);</script>
 </head>
 
 <body>
-  <!-- Header -->
   <header class="app-header" role="banner">
-    <h1>Warehouse Management System</h1>
-    <div class="user-bar" aria-live="polite">
-      <span id="roleBadge" title="Current role"></span>
-      <button id="logoutBtn" hidden type="button">Logout</button>
-      <button id="adminBtn" class="btn-ghost-small" hidden>Admin</button>
+    <div class="app-header-left">
+      <div class="brand-left">
+        <!-- Settings icon -->
+        <button id="adminBtn" class="icon-btn" type="button" title="Admin" aria-label="Admin" data-requires-role="admin" hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19.14,12.94a7.48,7.48,0,0,0,.06-.94,7.48,7.48,0,0,0-.06-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.17,7.17,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.7,2H10.3a.5.5,0,0,0-.49.41L9.43,5.06a7.17,7.17,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L5,11.06a7.48,7.48,0,0,0,0,1.88L2.86,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.17,7.17,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.49.41h3.4a.5.5,0,0,0,.49-.41l.38-2.65a7.17,7.17,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <!-- Logout -->
+        <button id="logoutBtn" class="btn btn-ghost-small" type="button" hidden>Log out</button>
+
+        <!-- Current role badge -->
+        <span id="roleBadge" class="session-user-info" title="Current role"></span>
+      </div>
+
+      <div class="product-title">
+        <span class="product-name">WMS</span>
+        <span class="product-sub">Warehouse Management System</span>
+      </div>
+    </div>
+
+    <div class="app-header-right">
+
+      <div class="search-wrapper" id="searchWrapper">
+        <input id="q" class="search-input" type="search" placeholder="Search items or holder…" />
+      </div>
+
+      <div class="toggle-row" id="showDeletedWrap">
+        <span class="toggle-label">Show deleted</span>
+        <label class="switch">
+          <input id="include_deleted_header" type="checkbox" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
+
+      <select id="status" class="small-select" aria-label="Status">
+        <option value="">All</option>
+        <option value="checked_out">Checked out</option>
+        <option value="available">Available</option>
+        <option value="deleted">Deleted</option>
+      </select>
+
+      <select id="system" class="small-select" aria-label="System"></select>
+      <select id="shelf" class="small-select" aria-label="Shelf"></select>
+
+      <button id="exportBtn" class="btn btn-secondary btn-compact" type="button">Export</button>
+      <button id="addItemBtn" class="btn btn-primary btn-compact" type="button">Add Item</button>
+
+      <select id="page_size" class="small-select" aria-label="Page size">
+        <option selected>50</option><option>100</option><option>200</option>
+      </select>
     </div>
   </header>
 
-  <!-- Login Section (default visible) -->
+  <!-- Login Section (show when not authenticated) -->
   <section id="loginSection" aria-labelledby="loginHeading">
     <form id="loginForm" class="auth-form" novalidate>
       <h2 id="loginHeading">Sign In</h2>
@@ -46,82 +86,48 @@
     </form>
   </section>
 
-  <!-- Main App Section (hidden until session) -->
-  <section id="appSection" hidden aria-labelledby="inventoryHeading">
-    <h2 id="inventoryHeading" class="sr-only">Inventory</h2>
-
-    <!-- Toolbar -->
-    <div class="toolbar" role="group" aria-label="Filters">
-      <label class="sr-only" for="q">Search</label>
-      <input id="q" type="search" placeholder="Search items..." />
-
-      <label class="sr-only" for="status">Status</label>
-      <select id="status" aria-label="Status">
-        <option value="">All</option>
-        <option value="available">Available</option>
-        <option value="checked_out">Checked Out</option>
-      </select>
-
-      <label class="sr-only" for="system">System</label>
-      <select id="system" aria-label="System"></select>
-
-      <label class="sr-only" for="shelf">Shelf</label>
-      <select id="shelf" aria-label="Shelf"></select>
-
-      <label class="sr-only" for="holder">Holder</label>
-      <input id="holder" type="text" placeholder="Holder" />
-      <button id="addItemBtn" class="btn btn-primary" type="button">Add Item</button>
-      <button id="importBtn" class="btn" type="button">Import CSV</button>
-      <input id="importFile" type="file" accept=".csv" hidden />
-      <button id="exportBtn" class="btn" type="button">Export CSV</button>
-
-      <label for="include_deleted">
-        <input id="include_deleted" type="checkbox" />
-        Show deleted
-      </label>
-
-      <label class="sr-only" for="page_size">Page size</label>
-      <select id="page_size" aria-label="Page size">
-        <option>50</option>
-        <option>100</option>
-        <option>200</option>
-      </select>
-
-      <button id="refreshBtn" type="button" aria-label="Refresh list">Refresh</button>
+  <!-- Main App -->
+  <main id="appSection" hidden>
+    <div class="app-main">
+      <div class="table-scroll-region" role="region" aria-label="Items">
+        <table id="itemsTable" class="file-table">
+          <thead class="file-table-head">
+            <tr>
+              <th class="sortable" data-sort="sku">SKU <span class="sort-indicator"></span></th>
+              <th class="sortable col-name" data-sort="name">Name <span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="system_code">System <span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="shelf_label">Shelf <span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="quantity">Quantity <span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="last_movement_ts">Last Activity <span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="clearance_level">Clearance Level<span class="sort-indicator"></span></th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="itemsTbody"></tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- Items Table -->
-    <div class="table-scroll-region" role="region" aria-label="Items">
-      <table id="itemsTable" class="file-table">
-        <thead class="file-table-head">
-          <tr>
-            <th scope="col" data-sort="name">Name</th>
-            <th scope="col" data-sort="sku">SKU</th>
-            <th scope="col" data-sort="system_code">System</th>
-            <th scope="col" data-sort="shelf_label">Shelf</th>
-            <th scope="col" data-sort="quantity">Qty</th>
-            <th scope="col" data-sort="last_movement_ts">Last Activity</th>
-            <th scope="col" data-sort="clearance_level">CL</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="itemsTbody"></tbody>
-      </table>
-    </div>
+    <div id="tableFooter" class="table-footer">
+      <div class="table-footer-inner">
+        <span id="footerActiveCount"></span>
+        <span class="footer-separator">•</span>
+        <span id="footerArchivedCount"></span>
+        <span class="footer-separator">•</span>
+        <span id="footerTotalCount"></span>
 
-    <!-- Pagination -->
-    <nav class="pager" role="navigation" aria-label="Pagination">
-      <button id="prevPage" type="button" aria-label="Previous page">&larr; Prev</button>
-      <span id="pagerStatus" aria-live="polite"></span>
-      <button id="nextPage" type="button" aria-label="Next page">Next &rarr;</button>
-    </nav>
-  </section>
+        <div id="pagerBar" class="pager-bar">
+          <button id="prevPage" class="table-btn" type="button">Prev</button>
+          <span id="pagerStatus" class="pager-status">Page 1 of 1</span>
+          <button id="nextPage" class="table-btn" type="button">Next</button>
+        </div>
+      </div>
+    </div>
+  </main>
 
   <!-- Item Drawer -->
   <dialog id="itemDrawer" aria-labelledby="itemDrawerTitle">
-    <div id="itemDetail" role="document">
-      <!-- Populated dynamically -->
-    </div>
+    <div id="itemDetail" role="document"></div>
     <div class="drawer-actions">
       <button id="itemDeleteBtn" data-requires-role="admin" type="button">Delete</button>
       <button id="itemRestoreBtn" data-requires-role="admin" type="button">Restore</button>
@@ -133,138 +139,83 @@
   <!-- Movement Modal -->
   <dialog id="movementModal" aria-labelledby="movementTitle">
     <h2 id="movementTitle" class="sr-only">Record Movement</h2>
-
     <nav class="tabs" role="tablist" aria-label="Movement types">
       <button data-kind="receive" role="tab" aria-selected="true">Receive</button>
-      <button data-kind="issue" role="tab" aria-selected="false">Issue</button>
-      <button data-kind="return" role="tab" aria-selected="false">Return</button>
-      <button data-kind="adjust" role="tab" aria-selected="false" data-requires-role="admin">Adjust</button>
-      <button data-kind="transfer" role="tab" aria-selected="false">Transfer</button>
+      <button data-kind="issue" role="tab">Issue</button>
+      <button data-kind="return" role="tab">Return</button>
+      <button data-kind="adjust" role="tab" data-requires-role="admin">Adjust</button>
+      <button data-kind="transfer" role="tab">Transfer</button>
     </nav>
-
     <div class="modal-body">
       <form id="mvReceive" data-kind="receive" hidden>
         <h3>Receive</h3>
-        <label class="sr-only" for="rc_item">Item ID</label>
-        <input id="rc_item" name="item_id" placeholder="Item ID" required />
-        <label class="sr-only" for="rc_shelf">Shelf ID</label>
-        <input id="rc_shelf" name="shelf_id" placeholder="Shelf ID" required />
-        <label class="sr-only" for="rc_qty">Quantity</label>
-        <input id="rc_qty" name="qty" type="number" placeholder="Quantity" required />
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvIssue" data-kind="issue" hidden>
         <h3>Issue</h3>
-        <label class="sr-only" for="is_item">Item ID</label>
-        <input id="is_item" name="item_id" placeholder="Item ID" required />
-        <label class="sr-only" for="is_shelf">Shelf ID</label>
-        <input id="is_shelf" name="shelf_id" placeholder="Shelf ID" required />
-        <label class="sr-only" for="is_qty">Quantity</label>
-        <input id="is_qty" name="qty" type="number" placeholder="Quantity" required />
-        <label class="sr-only" for="is_holder">Holder</label>
-        <input id="is_holder" name="holder" placeholder="Holder" required />
-        <label class="sr-only" for="is_due">Due at</label>
-        <input id="is_due" name="due_at" type="datetime-local" />
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
+        <input name="holder" placeholder="Holder" required />
+        <input name="due_at" type="datetime-local" />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvReturn" data-kind="return" hidden>
         <h3>Return</h3>
-        <label class="sr-only" for="rt_item">Item ID</label>
-        <input id="rt_item" name="item_id" placeholder="Item ID" required />
-        <label class="sr-only" for="rt_shelf">Shelf ID</label>
-        <input id="rt_shelf" name="shelf_id" placeholder="Shelf ID" required />
-        <label class="sr-only" for="rt_qty">Quantity</label>
-        <input id="rt_qty" name="qty" type="number" placeholder="Quantity" required />
-        <label class="sr-only" for="rt_holder">Holder</label>
-        <input id="rt_holder" name="holder" placeholder="Holder" />
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
+        <input name="holder" placeholder="Holder" />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvAdjust" data-kind="adjust" hidden>
         <h3>Adjust (Admin)</h3>
-        <label class="sr-only" for="ad_item">Item ID</label>
-        <input id="ad_item" name="item_id" placeholder="Item ID" required />
-        <label class="sr-only" for="ad_shelf">Shelf ID</label>
-        <input id="ad_shelf" name="shelf_id" placeholder="Shelf ID" required />
-        <label class="sr-only" for="ad_qty">Delta Quantity</label>
-        <input id="ad_qty" name="qty_delta" type="number" placeholder="Delta Quantity" required />
-        <label class="sr-only" for="ad_note">Reason</label>
-        <input id="ad_note" name="note" placeholder="Reason" required />
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="shelf_id" placeholder="Shelf ID" required />
+        <input name="qty_delta" type="number" placeholder="Delta Quantity" required />
+        <input name="note" placeholder="Reason" required />
         <button type="submit">Submit</button>
       </form>
 
       <form id="mvTransfer" data-kind="transfer" hidden>
         <h3>Transfer</h3>
-        <label class="sr-only" for="tr_item">Item ID</label>
-        <input id="tr_item" name="item_id" placeholder="Item ID" required />
-        <label class="sr-only" for="tr_from">From Shelf ID</label>
-        <input id="tr_from" name="from_shelf_id" placeholder="From Shelf ID" required />
-        <label class="sr-only" for="tr_to">To Shelf ID</label>
-        <input id="tr_to" name="to_shelf_id" placeholder="To Shelf ID" required />
-        <label class="sr-only" for="tr_qty">Quantity</label>
-        <input id="tr_qty" name="qty" type="number" placeholder="Quantity" required />
+        <input name="item_id" placeholder="Item ID" required />
+        <input name="from_shelf_id" placeholder="From Shelf ID" required />
+        <input name="to_shelf_id" placeholder="To Shelf ID" required />
+        <input name="qty" type="number" placeholder="Quantity" required />
         <input name="note" placeholder="Note" />
         <button type="submit">Submit</button>
       </form>
     </div>
-
     <button id="closeMovementModal" type="button">Close</button>
   </dialog>
 
-<!--- Add Item Modal -->
-<dialog id="addItemDialog">
-  <form id="addItemForm" method="dialog" style="padding:1rem 1.25rem; display:grid; grid-template-columns:1fr 1fr; gap:.6rem .8rem;">
-    <h3 style="grid-column:1 / -1; margin:.25rem 0 .25rem;">Add Item</h3>
-
-    <label for="ai_sku">SKU</label>
-    <input id="ai_sku" name="sku" type="text" placeholder="SKU (optional)" />
-
-    <label for="ai_name">Name</label>
-    <input id="ai_name" name="name" type="text" placeholder="Item name" required />
-
-    <label for="ai_unit">Unit</label>
-    <input id="ai_unit" name="unit" type="text" value="units" />
-
-    <label for="ai_cl">Clearance Level (1–4)</label>
-    <input id="ai_cl" name="clearance_level" type="number" min="1" max="4" required />
-
-    <label for="ai_system">System Code</label>
-    <input id="ai_system" name="system_code" list="systemCodes" required />
-    <datalist id="systemCodes"></datalist>
-
-    <label for="ai_shelf">Shelf Label</label>
-    <input id="ai_shelf" name="shelf_label" list="shelfLabels" required />
-    <datalist id="shelfLabels"></datalist>
-
-    <label for="ai_qty">Initial Quantity</label>
-    <input id="ai_qty" name="quantity" type="number" min="0" value="0" />
-
-    <label for="ai_tag">Tag</label>
-    <input id="ai_tag" name="tag" type="text" placeholder="optional" />
-
-    <label for="ai_note">Note</label>
-    <input id="ai_note" name="note" type="text" placeholder="optional" />
-
-    <div id="addItemError" style="grid-column:1 / -1; color:#a11; font-size:.8rem; min-height:1.1rem;"></div>
-
-    <div style="grid-column:1 / -1; display:flex; gap:.5rem; justify-content:flex-end; margin-top:.25rem;">
-      <button id="addItemCancel" type="button" class="btn btn-secondary">Cancel</button>
-      <button id="addItemSubmit" type="submit" class="btn btn-primary">Create</button>
-    </div>
-  </form>
-</dialog>
-
-  <!-- Admin Section (hidden until role applied) -->
+  <!-- Admin Section (role-gated) -->
   <section id="adminSection" hidden aria-labelledby="adminHeading">
-    <h2 id="adminHeading">Admin Dashboard</h2>
+    <div class="admin-topbar">
+      <h2 id="adminHeading">Admin Dashboard</h2>
+      <button id="backToCatalogBtn" class="btn btn-secondary btn-compact">← Back to Catalog</button>
+    </div>
+
 
     <div class="admin-block">
       <h3>Systems</h3>
+      <div class="toggle-row" id="showDeletedWrapAdmin">
+        <span class="toggle-label">Show deleted</span>
+        <label class="switch">
+          <input id="include_deleted_admin" type="checkbox" />
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
       <form id="systemForm" data-requires-role="admin" novalidate>
         <input name="id" type="hidden" />
         <input name="code" placeholder="Code" required />
@@ -278,14 +229,22 @@
       <h3>Shelves</h3>
       <form id="shelfForm" data-requires-role="admin" novalidate>
         <input name="id" type="hidden" />
-        <input name="system_id" placeholder="System ID" required />
+
+        <!-- System selector (required) -->
+        <label class="sr-only" for="shelf_system_id">System</label>
+        <select id="shelf_system_id" name="system_id" class="form-input" required>
+          <option value="" disabled selected>Choose a system</option>
+          <!-- options populated by JS -->
+        </select>
+
         <input name="label" placeholder="Label" required />
         <input name="length_mm" placeholder="Length (mm)" required />
-        <input name="width_mm" placeholder="Width (mm)" required />
+        <input name="width_mm"  placeholder="Width (mm)" required />
         <input name="height_mm" placeholder="Height (mm)" required />
         <input name="ordinal" type="number" placeholder="Ordinal" />
         <button type="submit">Save</button>
       </form>
+
       <table aria-label="Shelves"><tbody id="shelvesTable"></tbody></table>
     </div>
 
@@ -306,8 +265,132 @@
     </div>
   </section>
 
+  <!-- Add Item Dialog -->
+  <dialog id="addItemDialog" class="additem-dialog" aria-labelledby="addItemTitle">
+    <div class="modal-body">
+      <h2 id="addItemTitle" class="sr-only">Add Item</h2>
+
+      <!-- Tabs -->
+      <nav class="additem-tabs" role="tablist" aria-label="Add item modes">
+        <button id="aiTabManual" class="tab-btn tab-btn-active" role="tab" aria-selected="true">Manual Entry</button>
+        <button id="aiTabImport" class="tab-btn" role="tab" aria-selected="false">Import CSV</button>
+      </nav>
+
+      <!-- Panels -->
+      <section id="aiPanelManual" class="tab-panel tab-panel-active" role="tabpanel">
+        <form id="addItemForm" class="form" novalidate>
+          <div id="addItemError" class="session-error" style="min-height:1rem;"></div>
+
+          <label class="form-field">
+            <span class="form-label">Name *</span>
+            <input id="ai_name" name="name" class="form-input" required />
+          </label>
+
+          <label class="form-field">
+            <span class="form-label">SKU</span>
+            <input id="ai_sku" name="sku" class="form-input" />
+          </label>
+
+          <label class="form-field">
+            <span class="form-label">Unit</span>
+            <input id="ai_unit" name="unit" class="form-input" placeholder="units" />
+          </label>
+
+          <label class="form-field">
+            <span class="form-label">Clearance Level (1–4) *</span>
+            <select id="ai_cl" name="clearance_level" class="form-input" required>
+              <option value="" disabled selected>Select level</option>
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3">3</option><option value="4">4</option>
+            </select>
+          </label>
+
+          <fieldset class="fieldset-block">
+              <legend class="fieldset-legend">Location *</legend>
+
+              <label class="form-field">
+                <span class="form-label">System</span>
+                <select id="ai_system" name="system_code" class="form-input" required>
+                  <option value="" disabled selected>Choose a system</option>
+                </select>
+              </label>
+
+              <label class="form-field">
+                <span class="form-label">Shelf</span>
+                <select id="ai_shelf" name="shelf_label" class="form-input" required>
+                  <option value="" disabled selected>Choose a shelf</option>
+                </select>
+              </label>
+            </fieldset>
+
+          <label class="form-field">
+            <span class="form-label">Quantity</span>
+            <input id="ai_qty" name="quantity" type="number" min="0" class="form-input" value="0" />
+          </label>
+
+          <label class="form-field">
+            <span class="form-label">Tag</span>
+            <input id="ai_tag" name="tag" class="form-input" placeholder="optional" />
+          </label>
+
+          <label class="form-field">
+            <span class="form-label">Note</span>
+            <input id="ai_note" name="note" class="form-input" placeholder="optional" />
+          </label>
+
+          <div class="drawer-actions">
+            <button id="addItemCancel" type="button" class="btn btn-secondary">Cancel</button>
+            <button id="addItemSubmit" type="submit" class="btn btn-primary">Save Item</button>
+          </div>
+        </form>
+      </section>
+
+<!-- Import panel -->
+<div id="aiPanelImport" class="tab-panel" hidden>
+  <div class="modal-body">
+    <div class="import-sheet">
+      <div class="import-row">
+        <label class="form-label">CSV / XLSX file</label>
+        <input id="importFile" class="form-input" type="file" accept=".csv,.xlsx" />
+      </div>
+
+      <div class="import-hint">
+        Expected header:<br/>
+        <code>sku,name,unit,clearance_level,system_code,shelf_label,quantity,tag,note</code>
+      </div>
+
+      <div id="importStatus" class="import-status" aria-live="polite"></div>
+
+      <div class="drawer-actions">
+        <button id="addItemCancel2" type="button" class="btn btn-secondary">Cancel</button>
+        <button id="importBtn" type="button" class="btn btn-primary">Import</button>
+      </div>
+    </div>
+  </div>
+</div>
+    </div>
+  </dialog>
+
+
+
+
   <!-- Scripts -->
   <script defer type="module" src="./app.js"></script>
   <script defer type="module" src="./admin.js"></script>
+
+  <!-- Expanding search shell + footer fade-in -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const wrap = document.getElementById("searchWrapper");
+      const input = document.getElementById("q");
+      if (wrap && input) {
+        wrap.addEventListener("click", () => input.focus());
+        input.addEventListener("focus", () => wrap.classList.add("focused"));
+        input.addEventListener("blur",  () => wrap.classList.remove("focused"));
+      }
+      const footer = document.getElementById("tableFooter");
+      if (footer) setTimeout(() => footer.classList.add("show"), 300);
+    });
+  </script>
 </body>
 </html>

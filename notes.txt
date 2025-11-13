@@ -19,3 +19,9 @@ Later this can be hooked to an automated system which can automatically repositi
 Past movements itself can give so much information when connected to a "users" db 
 - who checks out the most items. Who has the longest checkouts - who has the longest overdues - who checks out a particular item frequentlty, 
 - what items are certain items guarenteed to be checked out, etc. 
+
+10th November: 
+- Fix the UI 
+- get the buttons all wired up correctly 
+- Move onto adding different pieces of the functionality. 
+Note - slow progress but sure progress. 

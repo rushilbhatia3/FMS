@@ -1,4 +1,3 @@
-# auth.py
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr
 import os, time, json, hmac, hashlib, base64
