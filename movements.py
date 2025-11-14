@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from typing import Optional, List, Literal, Any, Dict, Sequence
-
+import sqlite3
 import db
 from auth import get_current_user, require_admin
 
@@ -194,14 +194,26 @@ def receive(payload: ReceiveIn, user=Depends(get_current_user)):
 def issue(payload: IssueIn, user=Depends(get_current_user)):
     _ensure_item_clearance(payload.item_id, user)
     _exists("shelves", payload.shelf_id)
-    mid = db.db_write(
-        """
-        INSERT INTO movements(item_id, type, qty, shelf_id, holder, due_at, actor_user_id, note)
-        VALUES (?, 'issue', ?, ?, ?, ?, ?, ?)
-        """,
-        (payload.item_id, -payload.qty, payload.shelf_id, payload.holder, payload.due_at, user["id"], payload.note),
-    )
+
+    try:
+        mid = db.db_write(
+            """
+            INSERT INTO movements(item_id, type, qty, shelf_id, holder, due_at, actor_user_id, note)
+            VALUES (?, 'issue', ?, ?, ?, ?, ?, ?)
+            """,
+            (payload.item_id, -payload.qty, payload.shelf_id, payload.holder, payload.due_at, user["id"], payload.note),
+        )
+    except sqlite3.IntegrityError as e:
+        msg = str(e) or ""
+        if "quantity >=" in msg:
+            raise HTTPException(
+                status_code=400,
+                detail="movement failed: insufficient quantity to issue that many",
+            )
+        raise HTTPException(status_code=400, detail=f"movement failed: {msg}")
+
     return {"id": mid, "kind": "issue"}
+
 
 @router.post("/movements/return", status_code=201)
 def do_return(payload: ReturnIn, user=Depends(get_current_user)):

@@ -137,7 +137,7 @@ def _order_clause_filtered(sort: str, dir_: str) -> str:
 @router.get("/items", response_model=PaginatedItems)
 def list_items(
     q: str = Query("", description="FTS query over sku/name/tag/note + holder lookup"),
-    status_filter: Literal["", "available", "checked_out"] = Query("", alias="status"),
+    status_filter: Literal["", "available", "checked_out", "deleted"] = Query("", alias="status"),
     include_deleted: bool = Query(False),
     system_code: str = Query(""),
     shelf_label: str = Query(""),
@@ -151,9 +151,9 @@ def list_items(
     user=Depends(get_current_user),
 ):
     user_maxCL = _current_user_clearance(user)
-
     # Normalise search input
     q_norm = (q or "").strip()
+    include_del_flag = 1 if (include_deleted or status_filter == "deleted") else 0
     params = {
         "maxCL": user_maxCL,                         # None means unlimited
         "include_del": 1 if include_deleted else 0,
@@ -181,6 +181,7 @@ def list_items(
               :status = ''
            OR (:status = 'available'    AND isc.is_out = 0)
            OR (:status = 'checked_out'  AND isc.is_out = 1)
+           OR (:status = 'deleted'      AND isc.is_deleted = 1)
         )
         AND (:min_qty IS NULL OR isc.quantity >= :min_qty)
         AND (:max_qty IS NULL OR isc.quantity <= :max_qty)
@@ -191,14 +192,14 @@ def list_items(
         AND (
               :q = ''
 
-           -- 1) FTS over items_fts (sku/name/tag/note etc.)
+           -- 1) FTS over items_fts 
            OR isc.item_id IN (
                 SELECT rowid
                 FROM items_fts
                 WHERE items_fts MATCH :q
               )
 
-           -- 2) Substring match on basic item fields (case-insensitive)
+           -- 2) Substring match on basic item fields 
            OR (
                 :q_like IS NOT NULL AND (
                      LOWER(isc.name)        LIKE :q_like
@@ -208,7 +209,6 @@ def list_items(
                 )
               )
 
-           -- 3) Substring match on holder_index (current holders, case-insensitive)
            OR EXISTS (
                 SELECT 1
                 FROM holder_index hi
@@ -235,47 +235,54 @@ def list_items(
     order_sql = _order_clause_filtered(sort, dir)
 
     page_sql = filtered_cte + f"""
-    SELECT
-      item_id,
-      sku,
-      name,
-      unit,
-      clearance_level,
-      quantity,
-      is_deleted,
-      shelf_id,
-      shelf_label,
-      system_code,
-      is_out,
-      last_issue_ts,
-      last_return_ts,
-      last_movement_ts
-    FROM filtered
-    ORDER BY {order_sql}
-    LIMIT :limit OFFSET :offset;
-    """
+        SELECT
+        item_id,
+        sku,
+        name,
+        unit,
+        clearance_level,
+        quantity,
+        is_deleted,
+        shelf_id,
+        shelf_label,
+        system_code,
+        is_out,
+        last_issue_ts,
+        last_return_ts,
+        last_movement_ts,
+        (
+            SELECT GROUP_CONCAT(h.holder, ', ')
+            FROM current_out_by_holder h
+            WHERE h.item_id = filtered.item_id
+        ) AS current_holder
+        FROM filtered
+        ORDER BY {order_sql}
+        LIMIT :limit OFFSET :offset;
+        """
 
     rows = db.db_read(page_sql, params_page)
 
     items = [
-        {
-            "id":             r["item_id"],
-            "sku":            r["sku"],
-            "name":           r["name"],
-            "unit":           r["unit"],
-            "clearance_level": r["clearance_level"],
-            "quantity":       r["quantity"],
-            "is_deleted":     r["is_deleted"],
-            "shelf_id":       r["shelf_id"],
-            "shelf_label":    r["shelf_label"],
-            "system_code":    r["system_code"],
-            "is_out":         r["is_out"],
-            "last_issue_ts":  r["last_issue_ts"],
-            "last_return_ts": r["last_return_ts"],
-            "last_movement_ts": r["last_movement_ts"],
-        }
-        for r in rows
-    ]
+    {
+        "id":               r["item_id"],
+        "sku":              r["sku"],
+        "name":             r["name"],
+        "unit":             r["unit"],
+        "clearance_level":  r["clearance_level"],
+        "quantity":         r["quantity"],
+        "is_deleted":       r["is_deleted"],
+        "shelf_id":         r["shelf_id"],
+        "shelf_label":      r["shelf_label"],
+        "system_code":      r["system_code"],
+        "is_out":           r["is_out"],
+        "last_issue_ts":    r["last_issue_ts"],
+        "last_return_ts":   r["last_return_ts"],
+        "last_movement_ts": r["last_movement_ts"],
+        "current_holder":   r["current_holder"],
+    }
+    for r in rows
+]
+
 
     return {
         "items": items,

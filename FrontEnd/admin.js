@@ -15,6 +15,10 @@ export const Admin = (() => {
     shelfForm:     document.getElementById("shelfForm"),
     shelfSysSel:   document.getElementById("shelf_system_id"),
 
+    // users
+    usersTable:    document.getElementById("usersTable"),
+    userForm:      document.getElementById("userForm"),
+
     // admin-only controls
     incDel:        document.getElementById("include_deleted_admin"),
     backBtn:       document.getElementById("backToCatalogBtn"),
@@ -65,6 +69,42 @@ export const Admin = (() => {
     const rows = await core.api.get("/api/shelves", { include_deleted: !!include_deleted }).catch(() => []);
     shelvesCache = Array.isArray(rows) ? rows : [];
     renderShelvesTable(shelvesCache);
+  }
+
+  async function loadUsers() {
+    if (!el.usersTable) return;
+
+    let rows = [];
+    try {
+      // admin-only endpoint that returns ALL users
+      rows = await core.api.get("/api/users/admin");
+      if (!Array.isArray(rows)) rows = [];
+    } catch (err) {
+      console.error("Failed to load users", err);
+      el.usersTable.innerHTML = `<tr><td>Failed to load users.</td></tr>`;
+      return;
+    }
+
+    if (!rows.length) {
+      el.usersTable.innerHTML = `<tr><td>No users yet.</td></tr>`;
+      return;
+    }
+
+    el.usersTable.innerHTML = rows
+      .map((r) => {
+        const cl = r.max_clearance_level == null ? "—" : r.max_clearance_level;
+        const created = r.created_at ?? "";
+        return `
+          <tr data-id="${r.id}">
+            <td>${r.email}</td>
+            <td>${r.name ?? ""}</td>
+            <td>${r.role}</td>
+            <td>${cl}</td>
+            <td>${created}</td>
+          </tr>
+        `;
+      })
+      .join("");
   }
 
   // ---------------- Renderers ----------------
@@ -196,7 +236,7 @@ export const Admin = (() => {
     };
   }
 
-  // ---------------- Forms ----------------
+  // ---------------- Binders ----------------
   function bindSystemForm() {
     if (!el.systemForm) return;
     el.systemForm.addEventListener("submit", async (e) => {
@@ -269,6 +309,40 @@ export const Admin = (() => {
     });
   }
 
+    function bindUserForm() {
+    if (!el.userForm) return;
+
+    el.userForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = el.userForm.elements;
+
+      const payload = {
+        email: (f.email.value || "").trim(),
+        name: (f.name.value || "").trim(),
+        role: (f.role.value || "").trim(),
+        password: f.password.value || "",
+        max_clearance_level: f.max_clearance_level.value
+          ? Number(f.max_clearance_level.value)
+          : null,
+      };
+
+      if (!payload.email || !payload.name || !payload.role || !payload.password) {
+        core.toast("Email, name, role, and password are required.", "error");
+        return;
+      }
+
+      try {
+        await core.api.post("/api/users", payload);
+        core.toast("User created", "success");
+        el.userForm.reset();
+        await loadUsers(); // refresh list with the new user
+      } catch (err) {
+        core.toast(err.message || String(err), "error");
+      }
+    });
+  }
+
+
   // ---------------- Back button ----------------
   function bindBackButton() {
     const btn = el.backBtn;
@@ -302,7 +376,7 @@ export const Admin = (() => {
   // ---------------- Public API ----------------
   async function loadAdminLists(opts = {}) {
     const include_deleted = opts.include_deleted ?? getIncludeDeletedPref();
-    await Promise.all([loadSystems(include_deleted), loadShelves(include_deleted)]);
+    await Promise.all([loadSystems(include_deleted), loadShelves(include_deleted), loadUsers()]);
   }
 
   function init() {
@@ -311,6 +385,7 @@ export const Admin = (() => {
 
     bindSystemForm();
     bindShelfForm();
+    bindUserForm(); 
     bindBackButton();
     bindAdminToggleAndBus();
   }

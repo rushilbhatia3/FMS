@@ -29,8 +29,7 @@ const App = (() => {
     // filters
     q: core.$("#q"),
     status: core.$("#status"),
-    system: core.$("#system"),
-    shelf: core.$("#shelf"),
+    location: core.$("#location"),
     page_size: core.$("#page_size"),
     include_deleted_header: document.querySelector("#include_deleted_header"),
     include_deleted_admin: document.querySelector("#include_deleted_admin"),
@@ -53,19 +52,25 @@ const App = (() => {
     // movement modal
     movementModal: core.$("#movementModal"),
     closeMovementModal: core.$("#closeMovementModal"),
+    mvItemName: core.$("#mv_item_name"),
+    mvLocationLabel: core.$("#mv_location_label"),
+    mvItemIdDisplay: core.$("#mv_item_id_display"),
     mvReceive: core.$("#mvReceive"),
     mvIssue: core.$("#mvIssue"),
     mvReturn: core.$("#mvReturn"),
     mvAdjust: core.$("#mvAdjust"),
     mvTransfer: core.$("#mvTransfer"),
+    mvToLocation: core.$("#mv_to_location"),
+
   };
 
   let currentPage = 1;
   let currentSort = "last_movement_ts";
   let currentDir = "desc";
   let currentItemId = null;
+  let currentItem = null;
 
-  /* ---------- Helpers (deleted toggle + persistence) ---------- */
+  /* ---------- Helpers ---------- */
   function getHeaderDeletedState() {
     return !!el.include_deleted_header?.checked;
   }
@@ -78,6 +83,19 @@ const App = (() => {
       currentPage = 1;
       persistFilters();
       loadItems();
+    }
+  }
+
+  function formatWhen(ts) {
+    if (!ts) return "—";
+    try {
+      const d = dayjs(ts);
+      if (!d.isValid()) return ts;
+      const rel = d.fromNow ? d.fromNow() : "";
+      const abs = d.format("DD MMM, HH:mm");
+      return rel ? `${rel} • ${abs}` : abs;
+    } catch {
+      return ts;
     }
   }
 
@@ -94,7 +112,7 @@ const App = (() => {
     core.bus.emit("admin:include_deleted_changed", { include_deleted });
     window.ADMIN_INCLUDE_DELETED = include_deleted;
     if (!silent) {
-      /* no-op for catalogue; admin.js decides if it reloads */
+  //nothing happens here
     }
   }
 
@@ -106,12 +124,13 @@ const App = (() => {
   }
 
   function persistFilters() {
+    const { system_code, shelf_label } = getLocationFilter();
     const { cleanQ } = parseQueryTokens(el.q.value.trim());
     core.persist.set("filters", {
       q: cleanQ,
       status: el.status.value,
-      system: el.system.value,
-      shelf: el.shelf.value,
+      system: system_code,
+      shelf: shelf_label,
       include_deleted_catalogue: getHeaderDeletedState(),
       page_size: Number(el.page_size.value) || PAGE_SIZE_DEFAULT,
     });
@@ -192,39 +211,94 @@ const App = (() => {
   }
 
   /* -------------------- Filters & toolbar -------------------- */
+
+  function getLocationFilter() {
+    const sel = el.location;
+    if (!sel) return { system_code: "", shelf_label: "" };
+
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt) return { system_code: "", shelf_label: "" };
+
+    const system_code = opt.dataset.system || "";
+    const shelf_label = opt.dataset.shelf || "";
+    return { system_code, shelf_label };
+  }
+
+  function setLocationFromFilter(system_code, shelf_label) {
+    const sel = el.location;
+    if (!sel) return;
+    const opts = Array.from(sel.options);
+    const match = opts.find((o) => 
+      (o.dataset.system || "") === (system_code || "") &&
+      (o.dataset.shelf  || "") === (shelf_label  || "")
+    );
+    if (match) {
+      sel.value = match.value;
+    } else {
+      sel.value = "";
+    }
+  }
+
+  // Build Location options from systems + shelves
+  async function buildLocationOptions(saved = {}) {
+    if (!el.location) return;
+
+    let systems = [];
+    try {
+      systems = await core.api.get("/api/systems", { include_deleted: false });
+    } catch {
+      systems = [];
+    }
+    systems = Array.isArray(systems) ? systems : [];
+
+    let html = `<option value="">All locations</option>`;
+
+    //fetch all shelves and create an option-group
+    for (const sys of systems) {
+      let shelves = [];
+      try {
+        shelves = await core.api.get("/api/shelves", { system_id: sys.id, include_deleted: false });
+      } catch {
+        shelves = [];
+      }
+      shelves = Array.isArray(shelves) ? shelves : [];
+
+      html += `<optgroup label="System ${sys.code}">`;
+      // system-wide option
+      html += `<option value="sys:${sys.code}" data-system="${sys.code}" data-shelf="">${sys.code} — All shelves</option>`;
+
+      // shelf-level options
+      for (const sh of shelves) {
+        const label = sh.label ?? "";
+        html += `<option value="sys:${sys.code}|sh:${label}" data-system="${sys.code}" data-shelf="${label}">${sys.code} / ${label}</option>`;
+      }
+
+      html += `</optgroup>`;
+    }
+
+    el.location.innerHTML = html;
+
+    //restore  saved filters if present
+    const system_code = saved.system ?? "";
+    const shelf_label = saved.shelf ?? "";
+    setLocationFromFilter(system_code, shelf_label);
+  }
+
+
   async function initFilters() {
-    // systems -> catalogue filter uses only active systems
-    const systems = await core.api.get("/api/systems", { include_deleted: false });
-    el.system.innerHTML =
-      `<option value="">All systems</option>` +
-      systems.map((s) => `<option value="${s.code}">${s.code}</option>`).join("");
-
-    // shelves depend on system 
-    el.system.addEventListener("change", async () => {
-      await populateShelves();
-      currentPage = 1;
-      await loadItems();
-    });
-
-    // restore saved filters
+    //restore saved filters
     const saved = core.persist.get("filters", {});
     const adminSaved = getAdminPrefs();
 
     el.q.value = saved.q ?? "";
     el.status.value = saved.status ?? "";
     el.page_size.value = String(saved.page_size ?? PAGE_SIZE_DEFAULT);
-    el.system.value = saved.system ?? "";
 
-    // fill header toggle from catalogue setting
     setHeaderDeletedState(!!saved.include_deleted_catalogue, { silent: true });
-
-    // pick admin toggle from its own store
     setAdminDeletedState(!!adminSaved.include_deleted, { silent: true });
 
-    await populateShelves();
-    el.shelf.value = saved.shelf ?? "";
-
-    // “Deleted” status is chosen in catalogue -> lock ONLY the header toggle
+    //Location options and restore selected system/shelf
+    await buildLocationOptions(saved);
     function syncDeletedToggleLock() {
       const isDeletedView = el.status.value === "deleted";
       const wrapHeader = document.getElementById("showDeletedWrap");
@@ -240,7 +314,16 @@ const App = (() => {
 
     el.status.addEventListener("change", async () => {
       syncDeletedToggleLock();
-      currentPage = 1;
+
+      const isDeletedView = el.status.value === "deleted";
+      if (isDeletedView) {
+        currentPage = 1;
+        currentSort = "last_movement_ts"; 
+        currentDir = "desc";
+      } else {
+        currentPage = 1;
+      }
+
       persistFilters();
       await loadItems();
     });
@@ -263,8 +346,8 @@ const App = (() => {
       }, 300)
     );
 
-    // shelf / page size
-    [el.shelf, el.page_size].forEach((c) =>
+    // Location + page size
+    [el.location, el.page_size].forEach((c) =>
       c?.addEventListener("change", async () => {
         currentPage = 1;
         persistFilters();
@@ -272,7 +355,7 @@ const App = (() => {
       })
     );
 
-    // expanding search 
+    // expanding search
     const sw = document.getElementById("searchWrapper");
     const si = el.q;
     if (sw && si) {
@@ -284,18 +367,6 @@ const App = (() => {
     syncDeletedToggleLock();
   }
 
-  async function populateShelves() {
-    const system_code = el.system.value || "";
-    el.shelf.innerHTML = `<option value="">All shelves</option>`;
-    if (!system_code) return;
-    const systems = await core.api.get("/api/systems", { include_deleted: false });
-    const sys = systems.find((s) => s.code === system_code);
-    if (!sys) return;
-    const shelves = await core.api.get("/api/shelves", { system_id: sys.id, include_deleted: false });
-    el.shelf.innerHTML =
-      `<option value="">All shelves</option>` +
-      shelves.map((sh) => `<option value="${sh.label}">${sh.label}</option>`).join("");
-  }
 
   /* -------------------- Sorting -------------------- */
   function bindSorting() {
@@ -344,14 +415,22 @@ const App = (() => {
   async function loadItems() {
     const statusVal = el.status.value;
     const isDeletedView = statusVal === "deleted";
-    const include_deleted = isDeletedView ? "true" : getHeaderDeletedState() ? "true" : "false";
+
+
+    const include_deleted = isDeletedView
+      ? "true"
+      : getHeaderDeletedState()
+      ? "true"
+      : "false";
+
+    const { system_code, shelf_label } = getLocationFilter();
 
     const params = {
       q: el.q.value.trim(),
-      status: isDeletedView ? "" : statusVal,
+      status: statusVal, //send deleted through to the backend
       include_deleted,
-      system_code: el.system.value || "",
-      shelf_label: el.shelf.value || "",
+      system_code,
+      shelf_label,
       sort: currentSort || "created_at",
       dir: currentDir || "desc",
       page: String(currentPage),
@@ -360,8 +439,13 @@ const App = (() => {
 
     try {
       const data = await core.api.get("/api/items", params);
-      const rows = Array.isArray(data.items) ? data.items : Array.isArray(data.rows) ? data.rows : [];
-      const items = isDeletedView ? rows.filter((r) => Number(r.is_deleted ?? 0) === 1) : rows;
+      const rows = Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(data.rows)
+        ? data.rows
+        : [];
+
+      const items = rows;
 
       renderItems(items);
 
@@ -369,7 +453,9 @@ const App = (() => {
       const size = Number(params.page_size);
       const maxPage = Math.max(1, Math.ceil(total / size));
       currentPage = Math.min(currentPage, maxPage);
-      el.pagerStatus.textContent = `Page ${currentPage} of ${maxPage} • ${total} total`;
+
+      const suffix = isDeletedView ? "deleted" : "total";
+      el.pagerStatus.textContent = `Page ${currentPage} of ${maxPage} • ${total} ${suffix}`;
       el.prevPage.disabled = currentPage <= 1;
       el.nextPage.disabled = currentPage >= maxPage;
     } catch (err) {
@@ -397,12 +483,12 @@ const App = (() => {
 
     el.itemsTbody.innerHTML = items
       .map((row) => {
-        const when = row.last_movement_ts ? (dayjs(row.last_movement_ts).fromNow?.() || row.last_movement_ts) : "—";
+        const when = formatWhen(row.last_movement_ts);
         const sys = row.system_code ?? "—";
         const shelf = row.shelf_label ?? "—";
         const qty = row.quantity ?? row.qty ?? 0;
+        const holder = row.current_holder || (row.is_out ? "Checked out" : "—");
         const isDel = Number(row.is_deleted ?? 0) === 1;
-
         const editBtn = `
         <button class="icon-btn btn-edit" title="Edit" aria-label="Edit"
                 data-id="${row.id}" data-requires-role="admin">
@@ -420,32 +506,34 @@ const App = (() => {
            </button>`;
 
         return `
-        <tr data-id="${row.id}" class="${isDel ? "row-deleted" : ""}">
-          <td>${row.sku ?? "—"}</td>
-          <td class="clickable">${row.name}</td>
-          <td>${sys}</td>
-          <td>${shelf}</td>
-          <td>${qty}</td>
-          <td>${when}</td>
-          <td>${clearanceBadge(row.clearance_level, core?.state?.currentUser?.max_clearance_level)}</td>
-          <td class="cell-actions">
-            ${editBtn}
-            ${delOrRestoreBtn}
-          </td>
-        </tr>`;
+          <tr data-id="${row.id}" class="${isDel ? "row-deleted" : ""}">
+            <td>${row.sku ?? "—"}</td>
+            <td class="clickable">${row.name}</td>
+            <td>${sys}</td>
+            <td>${shelf}</td>
+            <td>${qty}</td>
+            <td>${holder}</td>
+            <td>${when}</td>
+            <td>${clearanceBadge(row.clearance_level, core?.state?.currentUser?.max_clearance_level)}</td>
+            <td class="cell-actions">
+              ${editBtn}
+              ${delOrRestoreBtn}
+            </td>
+          </tr>`;
       })
       .join("");
 
     core.applyRoleVisibility();
 
-    // row opens details
-    el.itemsTbody.querySelectorAll(".clickable").forEach((cell) => {
-      cell.addEventListener("click", async (e) => {
-        const tr = e.target.closest("tr");
-        const id = Number(tr?.dataset.id);
+    el.itemsTbody.querySelectorAll("tr").forEach((tr) => {
+      tr.addEventListener("click", async (e) => {
+        if (e.target.closest(".btn-edit, .btn-delete, .btn-restore")) return;
+
+        const id = Number(tr.dataset.id);
         if (id) await openItem(id);
       });
     });
+
 
     // edit
     el.itemsTbody.querySelectorAll(".btn-edit").forEach((btn) =>
@@ -456,6 +544,17 @@ const App = (() => {
       })
     );
 
+
+    async function softDeleteItem(id) {
+      await core.api.del(`/api/items/${id}`);
+      core.toast("Item deleted", "info");
+    }
+
+    async function restoreItem(id) {
+      await core.api.post(`/api/items/${id}/restore`, {});
+      core.toast("Item restored", "success");
+    }
+
     // delete (soft)
     el.itemsTbody.querySelectorAll(".btn-delete").forEach((btn) =>
       btn.addEventListener("click", async (e) => {
@@ -463,7 +562,7 @@ const App = (() => {
         const id = Number(btn.dataset.id);
         if (!id) return;
         try {
-          await softDeleteItem(id);   //-------------> there is no defination for softDeleteItem yet???  
+          await softDeleteItem(id);   //-------------> there is no defination for softDeleteItem yet  -- there is but it does register for some reason 
           await loadItems();
         } catch (err) {
           core.toast(String(err.message || err), "error");
@@ -495,6 +594,8 @@ const App = (() => {
     try {
       const item = await core.api.get(`/api/items/${id}`);
       const latest = await core.api.get(`/api/items/${id}/movements`);
+      currentItem = item; 
+
       renderItemDetail(item, latest);
       prefillMovementForms(item);
       showMovementTab("receive");
@@ -504,26 +605,51 @@ const App = (() => {
     }
   }
 
+  function updateMovementSummary(item) {
+  const summaryEl = document.getElementById("movementSummary");
+  if (!summaryEl || !item) return;
+
+  const qty = item.quantity ?? 0;
+  const unit = item.unit || "units";
+  const sys = item.system_code ?? "—";
+  const shelf = item.shelf_label ?? "—";
+
+  summaryEl.textContent = `Available: ${qty} ${unit} at ${sys} / ${shelf}`;
+}
+
 function renderItemDetail(item, latest) {
   el.itemDetail.innerHTML = `
-      <h3>${item.name} <small>(${item.sku ?? "—"})</small></h3>
+      <h3 class="item-header">
+  <span class="item-title">
+    ${item.name}
+    <small>(${item.sku ?? "—"})</small>
+  </span>
+  ${clearanceBadge(
+    item.clearance_level,
+    core?.state?.currentUser?.max_clearance_level
+  )}
+</h3>
       <div>System/Shelf: ${item.system_code ?? "—"} / ${item.shelf_label ?? "—"}</div>
-      <div>Qty: ${item.quantity} • ${clearanceBadge(item.clearance_level, core?.state?.currentUser?.max_clearance_level)}</div>
+      <div>Quantity: ${item.quantity} </div>
       <div>Status: ${item.is_out ? "Checked out" : "Available"}</div>
-      <div>Last issue: ${item.last_issue_ts ?? "—"}</div>
-      <div>Last return: ${item.last_return_ts ?? "—"}</div>
+      <div>Last issue: ${formatWhen(item.last_issue_ts )?? "—"}</div>
+      <div>Last return: ${formatWhen(item.last_return_ts) ?? "—"}</div>
       <hr />
       <h4>Latest movements</h4>
       <ul>
         ${
           Array.isArray(latest)
             ? latest
-                .map(
-                  (m) =>
-                    `<li>[${m.timestamp}] ${m.quantity} @ shelf#${m.shelf_id}${
-                      m.holder ? ` • holder ${m.holder}` : ""
-                    }</li>`
-                )
+                .map((m) => {
+                  const when = formatWhen(m.timestamp);
+                  const holder = m.holder ? ` • Holder: ${m.holder}` : "";
+                  return `
+                    <li>
+                      <strong>${when}</strong>
+                     -  Quantity <strong> ${m.quantity}  </strong>@ Shelf ${m.shelf_id}${holder}
+                    </li>
+                  `;
+                })
                 .join("")
             : ""
         }
@@ -538,9 +664,21 @@ function renderItemDetail(item, latest) {
 
 
   function showMovementTab(kind) {
+    if (!el.movementModal) return;
+
     const forms = el.movementModal.querySelectorAll("form[data-kind]");
-    forms.forEach((f) => (f.hidden = f.getAttribute("data-kind") !== kind));
+    forms.forEach((f) => {
+      const isActive = f.getAttribute("data-kind") === kind;
+      f.hidden = !isActive;
+    });
+
+    const tabs = el.movementModal.querySelectorAll("nav [data-kind]");
+    tabs.forEach((btn) => {
+      const isActive = btn.getAttribute("data-kind") === kind;
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
   }
+
 
   // ---------- Movements ----------
   function prefillMovementForms(item) {
@@ -551,6 +689,38 @@ function renderItemDetail(item, latest) {
     };
     const id = item.id;
     const shelfId = item.shelf_id ?? "";
+
+    //metadata
+    if (el.mvItemName) {
+      el.mvItemName.textContent = item.name ?? "—";
+    }
+    if (el.mvLocationLabel) {
+      const sys = item.system_code ?? "—";
+      const shelfLabel = item.shelf_label ?? "—";
+      el.mvLocationLabel.textContent = `${sys} / ${shelfLabel}`;
+    }
+    if (el.mvItemIdDisplay) {
+      el.mvItemIdDisplay.textContent = id != null ? String(id) : "—";
+    }
+
+    if (el.mvToLocation && el.location) {
+    // Reset
+    el.mvToLocation.innerHTML = "";
+
+    // Placeholder
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    placeholder.textContent = "Choose destination";
+    el.mvToLocation.appendChild(placeholder);
+
+    // Clone all non-empty options from header filter
+    Array.from(el.location.options).forEach((opt) => {
+      if (!opt.value) return; // skip "All" / empty
+      el.mvToLocation.appendChild(opt.cloneNode(true));
+    });
+  }
 
     setIf(el.mvReceive, "item_id", id);
     setIf(el.mvReceive, "shelf_id", shelfId);
@@ -630,37 +800,84 @@ function renderItemDetail(item, latest) {
   }
 
   function bindMovementModal() {
-    el.closeMovementModal?.addEventListener("click", () => el.movementModal.close());
-    el.movementModal?.querySelectorAll("nav [data-kind]").forEach((btn) => {
+    if (!el.movementModal) return;
+
+  // Close button
+  el.closeMovementModal?.addEventListener("click", () => el.movementModal.close());
+
+  // Tab buttons (top navigation inside the modal)
+  el.movementModal
+    ?.querySelectorAll("nav [data-kind]")
+    .forEach((btn) => {
       btn.addEventListener("click", () => {
         const kind = btn.getAttribute("data-kind");
-        el.movementModal.querySelectorAll("form[data-kind]").forEach(
-          (f) => (f.hidden = f.getAttribute("data-kind") !== kind)
-        );
+        el.movementModal
+          .querySelectorAll("form[data-kind]")
+          .forEach((f) => {
+            f.hidden = f.getAttribute("data-kind") !== kind;
+          });
       });
     });
 
-    el.mvReceive?.addEventListener("submit", (e) => submitMovement(e, "/api/movements/receive"));
-    el.mvIssue?.addEventListener("submit", (e) => submitMovement(e, "/api/movements/issue"));
-    el.mvReturn?.addEventListener("submit", (e) => submitMovement(e, "/api/movements/return"));
-    el.mvAdjust?.addEventListener("submit", (e) => submitMovement(e, "/api/movements/adjust"));
-    el.mvTransfer?.addEventListener("submit", (e) => submitMovement(e, "/api/movements/transfer"));
-  }
+  // Generic submit binding for all movement forms
+  el.movementModal
+    ?.querySelectorAll("form[data-kind]")
+    .forEach((form) => {
+      const kind = form.getAttribute("data-kind");
+      let endpoint = "";
+
+      switch (kind) {
+        case "receive":
+          endpoint = "/api/movements/receive";
+          break;
+        case "issue":
+          endpoint = "/api/movements/issue";
+          break;
+        case "return":
+          endpoint = "/api/movements/return";
+          break;
+        case "adjust":
+          endpoint = "/api/movements/adjust";
+          break;
+        case "transfer":
+          endpoint = "/api/movements/transfer";
+          break;
+        default:
+          return; // unknown skip
+      }
+
+      form.addEventListener("submit", (e) => submitMovement(e, endpoint));
+    });
+}
+
 
   /* -------------------- Admin Button -------------------- */
   function applyRoleUIForAdminButton(currentUser) {
     const adminBtn = document.getElementById("adminBtn");
     if (!adminBtn) return;
+
     const isAdmin = !!currentUser && String(currentUser.role || "").toLowerCase() === "admin";
     adminBtn.hidden = !isAdmin;
+
     if (isAdmin && !adminBtn._bound) {
       adminBtn.addEventListener("click", () => {
-        showSection("admin");
-        if (window.Admin && typeof window.Admin.loadAdminLists === "function") {
-          const incDel = getAdminPrefs().include_deleted === true;
-          window.Admin.loadAdminLists({ include_deleted: incDel });
+        const appSection   = document.getElementById("appSection");
+        const adminSection = document.getElementById("adminSection");
+        const inAdmin = adminSection && !adminSection.hidden;
+
+        if (inAdmin) {
+          // Already in admin  go back to catalog
+          showSection("app");
+        } else {
+          // In catalog  open admin and refresh lists
+          showSection("admin");
+          if (window.Admin && typeof window.Admin.loadAdminLists === "function") {
+            const incDel = getAdminPrefs().include_deleted === true;
+            window.Admin.loadAdminLists({ include_deleted: incDel });
+          }
         }
       });
+
       adminBtn._bound = true;
     }
   }
@@ -698,12 +915,14 @@ function renderItemDetail(item, latest) {
     const statusVal = el.status?.value || "";
     const isDeletedView = statusVal === "deleted";
     const includeDeleted = isDeletedView ? "true" : getHeaderDeletedState() ? "true" : "false";
-    // Use the same key names that /api/items expects
+
+    const { system_code, shelf_label } = getLocationFilter();
+
     return {
       q: el.q?.value || "",
       status: statusVal,
-      system_code: el.system?.value || "",
-      shelf_label: el.shelf?.value || "",
+      system_code,
+      shelf_label,
       include_deleted: includeDeleted,
       sort: currentSort,
       dir: currentDir,
@@ -875,7 +1094,7 @@ function renderItemDetail(item, latest) {
 
       if (statusEl) statusEl.textContent = "";
 
-      // quick CSV header sniff
+      // quick CSV header check
       if (file.name.toLowerCase().endsWith(".csv")) {
         try {
           const text = await file.text();
@@ -946,7 +1165,7 @@ function bindItemDrawer() {
       core.toast("No item selected.", "error");
       return;
     }
-    // Default to "receive" tab (or "issue" if you prefer)
+    updateMovementSummary(currentItem);
     showMovementTab("receive");
     el.movementModal?.showModal();
   });

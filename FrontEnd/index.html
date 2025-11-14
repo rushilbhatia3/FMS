@@ -20,21 +20,6 @@
 <body>
   <header class="app-header" role="banner">
     <div class="app-header-left">
-      <div class="brand-left">
-        <!-- Settings icon -->
-        <button id="adminBtn" class="icon-btn" type="button" title="Admin" aria-label="Admin" data-requires-role="admin" hidden>
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M19.14,12.94a7.48,7.48,0,0,0,.06-.94,7.48,7.48,0,0,0-.06-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.17,7.17,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.7,2H10.3a.5.5,0,0,0-.49.41L9.43,5.06a7.17,7.17,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L5,11.06a7.48,7.48,0,0,0,0,1.88L2.86,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.17,7.17,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.49.41h3.4a.5.5,0,0,0,.49-.41l.38-2.65a7.17,7.17,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" fill="currentColor"/>
-          </svg>
-        </button>
-
-        <!-- Logout -->
-        <button id="logoutBtn" class="btn btn-ghost-small" type="button" hidden>Log out</button>
-
-        <!-- Current role badge -->
-        <span id="roleBadge" class="session-user-info" title="Current role"></span>
-      </div>
-
       <div class="product-title">
         <span class="product-name">WMS</span>
         <span class="product-sub">Warehouse Management System</span>
@@ -43,35 +28,52 @@
 
     <div class="app-header-right">
 
-      <div class="search-wrapper" id="searchWrapper">
-        <input id="q" class="search-input" type="search" placeholder="Search items or holder…" />
+      <!-- TOP RIGHT: admin + logout + role badge -->
+      <div class="header-top-row">
+        <button id="adminBtn" class="icon-btn btn-swirly" type="button" title="Admin" aria-label="Admin" data-requires-role="admin" hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19.14,12.94a7.48,7.48,0,0,0,.06-.94,7.48,7.48,0,0,0-.06-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.17,7.17,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.7,2H10.3a.5.5,0,0,0-.49.41L9.43,5.06a7.17,7.17,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L5,11.06a7.48,7.48,0,0,0,0,1.88L2.86,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.17,7.17,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.49.41h3.4a.5.5,0,0,0,.49-.41l.38-2.65a7.17,7.17,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <button id="logoutBtn" class="btn btn-ghost-small" type="button" hidden>Log out</button>
+
+        <span id="roleBadge" class="session-user-info" title="Current role"></span>
       </div>
 
-      <div class="toggle-row" id="showDeletedWrap">
-        <span class="toggle-label">Show deleted</span>
-        <label class="switch">
-          <input id="include_deleted_header" type="checkbox" />
-          <span class="slider" aria-hidden="true"></span>
-        </label>
+      <!-- BOTTOM RIGHT: search + filters + actions -->
+      <div class="header-bottom-row">
+        <div class="search-wrapper" id="searchWrapper">
+          <input id="q" class="search-input btn-swirly" type="search" placeholder="Search items or holder…" />
+        </div>
+
+        <div class="toggle-row" id="showDeletedWrap">
+          <span class="toggle-label">Show deleted</span>
+          <label class="switch">
+            <input id="include_deleted_header" type="checkbox" />
+            <span class="slider" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <select id="status" class="small-select" aria-label="Status">
+          <option value="">All</option>
+          <option value="checked_out">Checked out</option>
+          <option value="available">Available</option>
+          <option value="deleted">Deleted</option>
+        </select>
+
+        <select id="location" class="small-select" aria-label="Location"></select>
+
+        <button id="exportBtn" class="btn btn-secondary btn-compact" type="button">Export</button>
+        <button id="addItemBtn" class="btn btn-primary btn-compact" type="button">Add Item</button>
+
+        <select id="page_size" class="small-select" aria-label="Page size">
+          <option selected>50</option><option>100</option><option>200</option>
+        </select>
       </div>
 
-      <select id="status" class="small-select" aria-label="Status">
-        <option value="">All</option>
-        <option value="checked_out">Checked out</option>
-        <option value="available">Available</option>
-        <option value="deleted">Deleted</option>
-      </select>
-
-      <select id="system" class="small-select" aria-label="System"></select>
-      <select id="shelf" class="small-select" aria-label="Shelf"></select>
-
-      <button id="exportBtn" class="btn btn-secondary btn-compact" type="button">Export</button>
-      <button id="addItemBtn" class="btn btn-primary btn-compact" type="button">Add Item</button>
-
-      <select id="page_size" class="small-select" aria-label="Page size">
-        <option selected>50</option><option>100</option><option>200</option>
-      </select>
     </div>
+
   </header>
 
   <!-- Login Section (show when not authenticated) -->
@@ -95,9 +97,10 @@
             <tr>
               <th class="sortable" data-sort="sku">SKU <span class="sort-indicator"></span></th>
               <th class="sortable col-name" data-sort="name">Name <span class="sort-indicator"></span></th>
-              <th class="sortable" data-sort="system_code">System <span class="sort-indicator"></span></th>
-              <th class="sortable" data-sort="shelf_label">Shelf <span class="sort-indicator"></span></th>
+              <th class="sortable system" data-sort="system_code">System <span class="sort-indicator"></span></th>
+              <th class="sortable shelf" data-sort="shelf_label">Shelf <span class="sort-indicator"></span></th>
               <th class="sortable" data-sort="quantity">Quantity <span class="sort-indicator"></span></th>
+              <th class="col-holder">Holder</th>
               <th class="sortable" data-sort="last_movement_ts">Last Activity <span class="sort-indicator"></span></th>
               <th class="sortable" data-sort="clearance_level">Clearance Level<span class="sort-indicator"></span></th>
               <th>Actions</th>
@@ -136,68 +139,121 @@
     </div>
   </dialog>
 
-  <!-- Movement Modal -->
-  <dialog id="movementModal" aria-labelledby="movementTitle">
-    <h2 id="movementTitle" class="sr-only">Record Movement</h2>
-    <nav class="tabs" role="tablist" aria-label="Movement types">
-      <button data-kind="receive" role="tab" aria-selected="true">Receive</button>
-      <button data-kind="issue" role="tab">Issue</button>
-      <button data-kind="return" role="tab">Return</button>
-      <button data-kind="adjust" role="tab" data-requires-role="admin">Adjust</button>
-      <button data-kind="transfer" role="tab">Transfer</button>
-    </nav>
-    <div class="modal-body">
-      <form id="mvReceive" data-kind="receive" hidden>
-        <h3>Receive</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
-        <input name="note" placeholder="Note" />
-        <button type="submit">Submit</button>
-      </form>
+<!-- Movement Modal -->
+<dialog id="movementModal" aria-labelledby="movementTitle">
+  <div class="movement-shell">
+    <header class="movement-header">
+      <h2 id="movementTitle">Record Movement</h2>
+      <button id="closeMovementModal" type="button" class="btn btn-ghost-small">Close</button>
+    </header>
 
-      <form id="mvIssue" data-kind="issue" hidden>
-        <h3>Issue</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
-        <input name="holder" placeholder="Holder" required />
-        <input name="due_at" type="datetime-local" />
-        <input name="note" placeholder="Note" />
-        <button type="submit">Submit</button>
-      </form>
+    <section class="movement-body">
+      <!-- Left: vertical movement type menu -->
+      <aside class="movement-sidebar">
+        <nav class="tabs" role="tablist" aria-label="Movement types">
+          <button data-kind="receive" role="tab" aria-selected="true">Receive</button>
+          <button data-kind="issue" role="tab">Issue</button>
+          <button data-kind="return" role="tab">Return</button>
+          <button data-kind="adjust" role="tab" data-requires-role="admin">Adjust</button>
+          <button data-kind="transfer" role="tab">Transfer</button>
+        </nav>
+      </aside>
 
-      <form id="mvReturn" data-kind="return" hidden>
-        <h3>Return</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
-        <input name="holder" placeholder="Holder" />
-        <input name="note" placeholder="Note" />
-        <button type="submit">Submit</button>
-      </form>
+      <!-- Right: immutable info + forms -->
+      <div class="movement-main">
+        <!-- Immutable meta (will be filled by JS) -->
+        <div class="movement-meta">
+          <div class="movement-meta-row">
+            <span class="movement-meta-label">Item</span>
+            <span class="movement-meta-value" id="mv_item_name">—</span>
+          </div>
+          <div class="movement-meta-row">
+            <span class="movement-meta-label">System / Shelf</span>
+            <span class="movement-meta-value" id="mv_location_label">—</span>
+          </div>
+          <div class="movement-meta-row">
+            <span class="movement-meta-label">Item ID</span>
+            <span class="movement-meta-value" id="mv_item_id_display">—</span>
+          </div>
+        </div>
 
-      <form id="mvAdjust" data-kind="adjust" hidden>
-        <h3>Adjust (Admin)</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="shelf_id" placeholder="Shelf ID" required />
-        <input name="qty_delta" type="number" placeholder="Delta Quantity" required />
-        <input name="note" placeholder="Reason" required />
-        <button type="submit">Submit</button>
-      </form>
+        <!-- Forms: item_id & shelf_id now hidden, not editable -->
+        <div class="modal-body">
+          <form id="mvReceive" data-kind="receive" hidden>
+            <h3>Receive</h3>
+            <input name="item_id" type="hidden" />
+            <input name="shelf_id" type="hidden" />
 
-      <form id="mvTransfer" data-kind="transfer" hidden>
-        <h3>Transfer</h3>
-        <input name="item_id" placeholder="Item ID" required />
-        <input name="from_shelf_id" placeholder="From Shelf ID" required />
-        <input name="to_shelf_id" placeholder="To Shelf ID" required />
-        <input name="qty" type="number" placeholder="Quantity" required />
-        <input name="note" placeholder="Note" />
-        <button type="submit">Submit</button>
-      </form>
-    </div>
-    <button id="closeMovementModal" type="button">Close</button>
-  </dialog>
+            <input name="qty" type="number" placeholder="Quantity" required />
+            <input name="note" placeholder="Note" />
+            <button type="submit">Submit</button>
+          </form>
+
+          <form id="mvIssue" data-kind="issue" hidden>
+            <h3>Issue</h3>
+            <input name="item_id" type="hidden" />
+            <input name="shelf_id" type="hidden" />
+
+            <input name="qty" type="number" placeholder="Quantity" required />
+            <input name="holder" placeholder="Holder" required />
+            <input name="due_at" type="datetime-local" />
+            <input name="note" placeholder="Note" />
+            <button type="submit">Submit</button>
+          </form>
+
+          <form id="mvReturn" data-kind="return" hidden>
+            <h3>Return</h3>
+            <input name="item_id" type="hidden" />
+            <input name="shelf_id" type="hidden" />
+
+            <input name="qty" type="number" placeholder="Quantity" required />
+            <input name="holder" placeholder="Holder" />
+            <input name="note" placeholder="Note" />
+            <button type="submit">Submit</button>
+          </form>
+
+          <form id="mvAdjust" data-kind="adjust" hidden>
+            <h3>Adjust (Admin)</h3>
+            <input name="item_id" type="hidden" />
+            <input name="shelf_id" type="hidden" />
+
+            <input name="qty_delta" type="number" placeholder="Delta Quantity" required />
+            <input name="note" placeholder="Reason" required />
+            <button type="submit">Submit</button>
+          </form>
+
+          <form id="mvTransfer" data-kind="transfer" hidden>
+  <h3>Transfer</h3>
+  <input name="item_id" type="hidden" />
+  <input name="from_shelf_id" type="hidden" />
+
+  <label class="form-field">
+    <span class="form-label">Move to</span>
+    <select id="mv_to_location" class="form-input" name="to_shelf_id" required>
+      <option value="" disabled selected>Choose destination</option>
+      <!-- options cloned from header #location via JS -->
+    </select>
+  </label>
+
+  <label class="form-field">
+    <span class="form-label">Quantity</span>
+    <input name="qty" type="number" placeholder="Quantity" required />
+  </label>
+
+  <label class="form-field">
+    <span class="form-label">Note</span>
+    <input name="note" placeholder="Note" />
+  </label>
+
+  <button type="submit">Submit</button>
+</form>
+
+        </div>
+      </div>
+    </section>
+  </div>
+</dialog>
+
 
   <!-- Admin Section (role-gated) -->
   <section id="adminSection" hidden aria-labelledby="adminHeading">

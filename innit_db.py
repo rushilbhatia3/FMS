@@ -655,41 +655,22 @@ HAVING qty_out > 0;
 
 """
 
+Newadd2="""--UPDATE items
+--SET quantity = COALESCE(
+  --(
+   -- SELECT SUM(m.qty)
+   -- FROM movements m
+   -- WHERE m.item_id = items.id
+  --),
+ -- 0
+--);
 
-def reset_users():
-    print(" Resetting all users...")
-    with closing(db.get_conn()) as conn, conn:
-        # Drop all existing users
-        conn.execute("DELETE FROM users;")
-        conn.execute("DELETE FROM sqlite_sequence WHERE name='users';")
+DROP TRIGGER IF EXISTS trg_movements_ai;
+UPDATE items
+SET quantity = COALESCE(
+  (SELECT SUM(m.qty) FROM movements m WHERE m.item_id = items.id),
+  0
+);
+"""
 
-        #new base users
-        seed_users = [
-            {
-                "email": "admin@hocc.com",
-                "password": "12345678",
-                "role": "admin",
-            },
-            {
-                "email": "rushil@hocc.com",
-                "password": "Hocc@123",
-                "role": "admin",
-            },
-            {
-                "email": "user@hocc.com",
-                "password": "Rushil@12",
-                "role": "user",
-            },
-        ]
-
-        #Insert with bcrypt hashes
-        for u in seed_users:
-            pw_hash = bcrypt.hashpw(u["password"].encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            conn.execute(
-                "INSERT INTO users (email, password_hash, role, active) VALUES (?, ?, ?, 1)",
-                (u["email"].lower(), pw_hash, u["role"])
-            )
-        print(f"✅  Inserted {len(seed_users)} users.")
-
-#reset_users()
-executor(NewAdd)
+executor(Newadd2)
