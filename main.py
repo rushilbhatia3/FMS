@@ -14,6 +14,7 @@ from shelves import router as shelves_router
 from items import router as items_router
 from movements import router as movements_router
 from status import router as status_router
+from stats import router as stats_router
 
 
 def create_app() -> FastAPI:
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(items_router, prefix="/api")
     app.include_router(movements_router, prefix="/api")
     app.include_router(status_router, prefix="/api")
+    app.include_router(stats_router, prefix="/api")
 
     # ---------- Static frontend ----------
     frontend_dir = (pathlib.Path(__file__).parent / "Frontend").resolve()

@@ -60,7 +60,7 @@ def _set_session_cookie(resp: Response, user_row) -> None:
         "iat": now,
     }
     token = _sign(payload)
-    # HttpOnly cookie; set secure flag according to environment needs
+    # HttpOnly cookie; 
     resp.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
@@ -83,7 +83,6 @@ def get_current_user(request: Request) -> Dict[str, Any]:
     payload = _verify(token)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
-    # Optionally re-load user to ensure still exists and role not changed to disabled
     rows = db.db_read(
         "SELECT id, email, name, role, max_clearance_level FROM users WHERE id = ?",
         (payload["sub"],),

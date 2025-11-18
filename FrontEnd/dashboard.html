@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WMS – Audit Dashboard</title>
+
+  <link rel="stylesheet" href="./settings.css" />
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./dashboard.css" />
+  <link rel="icon" href="./favicon.png" type="image/png" />
+  <meta name="theme-color" content="#ffffff" />
+
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+  <script>dayjs.extend(window.dayjs_plugin_relativeTime);</script>
+</head>
+
+<body>
+  <header class="app-header" role="banner">
+    <div class="app-header-left">
+      <div class="product-title">
+        <span class="product-name">WMS</span>
+        <span class="product-sub">Warehouse Management System</span>
+      </div>
+    </div>
+
+    <div class="app-header-right">
+      <div class="header-top-row">
+        <button id="dashboardBtn" class="btn btn-ghost-small" type="button">
+          Dashboard
+        </button>
+
+        <button id="adminBtn" class="icon-btn btn-swirly" type="button"
+                title="Admin" aria-label="Admin" data-requires-role="admin" hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19.14,12.94a7.48,7.48,0,0,0,.06-.94,7.48,7.48,0,0,0-.06-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.17,7.17,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.7,2H10.3a.5.5,0,0,0-.49.41L9.43,5.06a7.17,7.17,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L5,11.06a7.48,7.48,0,0,0,0,1.88L2.86,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.17,7.17,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.49.41h3.4a.5.5,0,0,0,.49-.41l.38-2.65a7.17,7.17,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <button id="logoutBtn" class="btn btn-ghost-small" type="button" hidden>
+          Log out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="dashboardMain">
+    <section id="dashboardSection" aria-labelledby="dashboardHeading">
+      <div class="dashboard-shell">
+        <div class="dashboard-topbar">
+          <div>
+            <h1 id="dashboardHeading">Audit Dashboard</h1>
+            <p class="dashboard-subtitle">
+              Overview of current inventory health, recent movements, and key exceptions across the warehouse.
+            </p>
+          </div>
+          <div class="dashboard-topbar-actions">
+            <button id="backToCatalogFromDashboard" class="btn btn-secondary btn-compact" type="button">
+              ← Back to Catalog
+            </button>
+          </div>
+        </div>
+
+        <div class="dashboard-main">
+          <!-- KPIs row -->
+          <section class="dash-row">
+            <article class="dash-card dash-card-kpi">
+              <h2 class="dash-card-title">Total Items</h2>
+              <p class="dash-kpi" id="dash_total_items">—</p>
+              <p class="dash-kpi-caption">All catalogue items (including deleted)</p>
+            </article>
+
+            <article class="dash-card dash-card-kpi">
+              <h2 class="dash-card-title">Available vs Checked Out</h2>
+              <p class="dash-kpi" id="dash_available_vs_out">—</p>
+              <p class="dash-kpi-caption">Live stock status snapshot</p>
+            </article>
+
+            <article class="dash-card dash-card-kpi">
+              <h2 class="dash-card-title">Deleted / Archived</h2>
+              <p class="dash-kpi" id="dash_deleted_items">—</p>
+              <p class="dash-kpi-caption">Soft-deleted items still in history</p>
+            </article>
+          </section>
+
+          <section class="dash-row">
+            <article class="dash-card">
+              <header class="dash-card-head">
+                <h2 class="dash-card-title">Movements (Last 7 Days)</h2>
+                <span class="dash-chip" id="dash_mv_7d_summary">—</span>
+              </header>
+              <div class="dash-card-body">
+                <ul class="dash-list">
+                  <li id="dash_mv_7d_receive">Receive: —</li>
+                  <li id="dash_mv_7d_issue">Issue: —</li>
+                  <li id="dash_mv_7d_return">Return: —</li>
+                  <li id="dash_mv_7d_adjust">Adjust: —</li>
+                  <li id="dash_mv_7d_transfer">Transfer: —</li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="dash-card">
+              <header class="dash-card-head">
+                <h2 class="dash-card-title">Overdue & Attention</h2>
+                <span class="dash-chip dash-chip-warn" id="dash_overdue_summary">—</span>
+              </header>
+              <div class="dash-card-body">
+                <ul class="dash-list">
+                  <li id="dash_overdue_items">Overdue items: —</li>
+                  <li id="dash_due_today">Due today: —</li>
+                  <li id="dash_long_out">Long-out items (&gt; X days): —</li>
+                </ul>
+              </div>
+            </article>
+          </section>
+
+          <section class="dash-row dash-row-large">
+            <article class="dash-card">
+              <header class="dash-card-head">
+                <h2 class="dash-card-title">Fastest Moving Items (30 days)</h2>
+              </header>
+              <div class="dash-table-wrap">
+                <table class="dash-table" aria-label="Fastest moving items">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>System / Shelf</th>
+                      <th>Movements</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dash_fast_items">
+                    <tr><td colspan="3">No data yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="dash-card">
+              <header class="dash-card-head">
+                <h2 class="dash-card-title">Dormant / Sleeping Stock</h2>
+              </header>
+              <div class="dash-table-wrap">
+                <table class="dash-table" aria-label="Dormant items">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>System / Shelf</th>
+                      <th>Last movement</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dash_dormant_items">
+                    <tr><td colspan="3">No data yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+
+  <div id="tableFooter" class="table-footer">
+    <div class="table-footer-inner">
+      <span id="signedInInfo" class="signed-in-info"></span>
+
+      <div class="footer-right">
+        <span id="footerActiveCount"></span>
+        <span class="footer-separator">•</span>
+        <span id="footerArchivedCount"></span>
+        <span class="footer-separator">•</span>
+        <span id="footerTotalCount"></span>
+
+        <div id="pagerBar" class="pager-bar">
+          <span id="pagerStatus" class="pager-status">Dashboard view</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="./dashboard.js" defer></script>
+</body>
+</html>

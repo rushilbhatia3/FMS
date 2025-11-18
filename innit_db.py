@@ -665,12 +665,28 @@ Newadd2="""--UPDATE items
  -- 0
 --);
 
-DROP TRIGGER IF EXISTS trg_movements_ai;
-UPDATE items
-SET quantity = COALESCE(
-  (SELECT SUM(m.qty) FROM movements m WHERE m.item_id = items.id),
-  0
+--DROP TRIGGER IF EXISTS trg_movements_ai;
+--UPDATE items
+--SET quantity = COALESCE(
+--  (SELECT SUM(m.qty) FROM movements m WHERE m.item_id = items.id),
+--  0
+--);
+
+
+CREATE TABLE IF NOT EXISTS item_events (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id    INTEGER NOT NULL,
+  kind       TEXT    NOT NULL,              -- 'create', 'metadata_update', 'soft_delete', 'restore', etc.
+  actor      TEXT,                          -- user email/name
+  summary    TEXT,                          -- short desc
+  details    TEXT,                          -- JSON diff
+  created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+
+  FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_item_events_item_ts
+  ON item_events(item_id, created_at DESC);
 """
 
 executor(Newadd2)

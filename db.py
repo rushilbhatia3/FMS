@@ -43,7 +43,7 @@ def init_db() -> None:
         conn.commit()
 
 
-# Initialize schema at import if file is empty or missing core tables
+# Initialize schema at import 
 def _needs_init() -> bool:
     if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
         return True

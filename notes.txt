@@ -25,3 +25,14 @@ Past movements itself can give so much information when connected to a "users" d
 - get the buttons all wired up correctly 
 - Move onto adding different pieces of the functionality. 
 Note - slow progress but sure progress. 
+
+
+17th November: 
+A decent build before today's push. Just hammering out some of the wrinkles in this. The export module still needs to be completed. 
+I should honestly start thinking about licensing. 
+Focus for today: 
+- Make sure the transfer works well 
+- Add Admin edits to the item history 
+- in the edit modal - when clicking on an item - the button doesnt update 
+- Fix export 
+- Think about adding a warehouse level control - Will make the Ui more complicated to handle but still possible. 

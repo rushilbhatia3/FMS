@@ -28,7 +28,7 @@ class SystemOut(BaseModel):
     is_deleted: int
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
-    deleted_at: Optional[str] = None  # populated after migration
+    deleted_at: Optional[str] = None 
 
 class SystemUpdate(BaseModel):
     code: Optional[str] = None

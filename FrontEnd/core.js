@@ -108,12 +108,30 @@ export const core = (() => {
   function guardAdmin() {
     if (!state.currentUser || state.currentUser.role !== "admin") throw new Error("Admin required");
   }
+  
   function applyRoleVisibility() {
     const isAdmin = !!(state.currentUser && state.currentUser.role === "admin");
-    $all("[data-requires-role='admin']").forEach(el => { el.hidden = !isAdmin; });
-    setText($("#roleBadge"), state.currentUser ? `${state.currentUser.role}` : "");
+
+    $all("[data-requires-role='admin']").forEach(el => {
+      el.hidden = !isAdmin;
+    });
+
+    const signedEl = $("#signedInInfo");
+    if (signedEl) {
+      if (state.currentUser) {
+        const name = state.currentUser.name || state.currentUser.email || "User";
+        const role = state.currentUser.role || "";
+        signedEl.textContent = role
+          ? `Signed in as ${name} • Role: ${role}`
+          : `Signed in as ${name}`;
+      } else {
+        signedEl.textContent = "";
+      }
+    }
+
     if ($("#logoutBtn")) $("#logoutBtn").hidden = !state.currentUser;
   }
+
 
   return {
     api, me, login, logout, state,

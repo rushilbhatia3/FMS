@@ -4,6 +4,8 @@ from typing import Optional, List, Literal, Any, Dict, Sequence
 import sqlite3
 import db
 from auth import get_current_user, require_admin
+from fastapi.responses import StreamingResponse
+import io, csv
 
 router = APIRouter(tags=["movements"])
 
@@ -258,8 +260,126 @@ def transfer(payload: TransferIn, user=Depends(get_current_user)):
         """,
         params,
     )
+
+    db.db_write(
+        "UPDATE items SET shelf_id = ?, updated_at = datetime('now') WHERE id = ?",
+        (payload.to_shelf_id, payload.item_id),
+    )
+
     return {
         "transferred": payload.qty,
         "from_shelf_id": payload.from_shelf_id,
-        "to_shelf_id": payload.to_shelf_id
+        "to_shelf_id": payload.to_shelf_id,
     }
+
+@router.get("/movements/export", dependencies=[Depends(require_admin)])
+def export_movements(
+    item_id: Optional[int] = Query(None),
+    system_code: str = Query(""),
+    shelf_label: str = Query(""),
+    kind: Optional[Kind] = Query(None),
+    from_ts: Optional[str] = Query(None, description="ISO from timestamp"),
+    to_ts: Optional[str] = Query(None, description="ISO to timestamp"),
+    user=Depends(get_current_user),
+):
+    """
+    Export movement ledger as CSV.
+    Admin-only, because this is effectively an audit trail.
+    """
+
+    sql = """
+      SELECT
+        m.id,
+        m.item_id,
+        i.sku,
+        i.name,
+        m.kind,
+        m.qty,
+        m.shelf_id,
+        s.label      AS shelf_label,
+        sys.code     AS system_code,
+        m.actor_user_id,
+        u.email      AS actor_email,
+        m.note,
+        m.timestamp
+      FROM movements m
+      JOIN items   i   ON m.item_id = i.id
+      JOIN shelves s   ON m.shelf_id = s.id
+      JOIN systems sys ON s.system_id = sys.id
+      LEFT JOIN users u ON m.actor_user_id = u.id
+      WHERE 1=1
+    """
+    params = []
+
+    if item_id is not None:
+        sql += " AND m.item_id = ?"
+        params.append(item_id)
+
+    if system_code:
+        sql += " AND sys.code = ?"
+        params.append(system_code)
+
+    if shelf_label:
+        sql += " AND s.label = ?"
+        params.append(shelf_label)
+
+    if kind:
+        sql += " AND m.kind = ?"
+        params.append(kind)
+
+    if from_ts:
+        sql += " AND m.timestamp >= ?"
+        params.append(from_ts)
+
+    if to_ts:
+        sql += " AND m.timestamp <= ?"
+        params.append(to_ts)
+
+    sql += " ORDER BY m.timestamp DESC"
+
+    rows = db.db_read(sql, tuple(params))
+
+    def row_iter():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+
+        writer.writerow([
+            "id",
+            "timestamp",
+            "item_id",
+            "sku",
+            "name",
+            "kind",
+            "qty",
+            "system_code",
+            "shelf_label",
+            "shelf_id",
+            "actor_email",
+            "note",
+        ])
+        yield buf.getvalue()
+        buf.seek(0); buf.truncate(0)
+
+        for r in rows:
+            writer.writerow([
+                r["id"],
+                r["timestamp"],
+                r["item_id"],
+                r["sku"],
+                r["name"],
+                r["kind"],
+                r["qty"],
+                r["system_code"],
+                r["shelf_label"],
+                r["shelf_id"],
+                r["actor_email"] or "",
+                r["note"] or "",
+            ])
+            yield buf.getvalue()
+            buf.seek(0); buf.truncate(0)
+
+    return StreamingResponse(
+        row_iter(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="movements_export.csv"'},
+    )

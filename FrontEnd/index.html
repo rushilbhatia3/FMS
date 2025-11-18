@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" >
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -18,7 +18,9 @@
 </head>
 
 <body>
+
   <header class="app-header" role="banner">
+
     <div class="app-header-left">
       <div class="product-title">
         <span class="product-name">WMS</span>
@@ -27,21 +29,17 @@
     </div>
 
     <div class="app-header-right">
-
-      <!-- TOP RIGHT: admin + logout + role badge -->
       <div class="header-top-row">
+        <button id="dashboardBtn" class="btn btn-ghost-small btn-swirly" type="button"> Dashboard </button>
         <button id="adminBtn" class="icon-btn btn-swirly" type="button" title="Admin" aria-label="Admin" data-requires-role="admin" hidden>
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M19.14,12.94a7.48,7.48,0,0,0,.06-.94,7.48,7.48,0,0,0-.06-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.6-.22l-2.49,1a7.17,7.17,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.7,2H10.3a.5.5,0,0,0-.49.41L9.43,5.06a7.17,7.17,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.6.22l-2,3.46a.5.5,0,0,0,.12.64L5,11.06a7.48,7.48,0,0,0,0,1.88L2.86,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.6.22l2.49-1a7.17,7.17,0,0,0,1.63.94l.38,2.65a.5.5,0,0,0,.49.41h3.4a.5.5,0,0,0,.49-.41l.38-2.65a7.17,7.17,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.6-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" fill="currentColor"/>
           </svg>
         </button>
-
         <button id="logoutBtn" class="btn btn-ghost-small" type="button" hidden>Log out</button>
 
-        <span id="roleBadge" class="session-user-info" title="Current role"></span>
       </div>
 
-      <!-- BOTTOM RIGHT: search + filters + actions -->
       <div class="header-bottom-row">
         <div class="search-wrapper" id="searchWrapper">
           <input id="q" class="search-input btn-swirly" type="search" placeholder="Search items or holder…" />
@@ -64,14 +62,13 @@
 
         <select id="location" class="small-select" aria-label="Location"></select>
 
-        <button id="exportBtn" class="btn btn-secondary btn-compact" type="button">Export</button>
-        <button id="addItemBtn" class="btn btn-primary btn-compact" type="button">Add Item</button>
+        <button id="exportBtn" class="btn btn-secondary btn-compact btn-swirly" type="button">Export</button>
+        <button id="addItemBtn" class="btn btn-primary btn-compact" type="button btn-swirly">Add Item</button>
 
         <select id="page_size" class="small-select" aria-label="Page size">
           <option selected>50</option><option>100</option><option>200</option>
         </select>
       </div>
-
     </div>
 
   </header>
@@ -113,19 +110,24 @@
 
     <div id="tableFooter" class="table-footer">
       <div class="table-footer-inner">
-        <span id="footerActiveCount"></span>
-        <span class="footer-separator">•</span>
-        <span id="footerArchivedCount"></span>
-        <span class="footer-separator">•</span>
-        <span id="footerTotalCount"></span>
+        <span id="signedInInfo" class="signed-in-info"></span>
 
-        <div id="pagerBar" class="pager-bar">
-          <button id="prevPage" class="table-btn" type="button">Prev</button>
-          <span id="pagerStatus" class="pager-status">Page 1 of 1</span>
-          <button id="nextPage" class="table-btn" type="button">Next</button>
+        <div class="footer-right">
+          <span id="footerActiveCount"></span>
+          <span class="footer-separator">•</span>
+          <span id="footerArchivedCount"></span>
+          <span class="footer-separator">•</span>
+          <span id="footerTotalCount"></span>
+
+          <div id="pagerBar" class="pager-bar">
+            <button id="prevPage" class="table-btn" type="button">Prev</button>
+            <span id="pagerStatus" class="pager-status">Page 1 of 1</span>
+            <button id="nextPage" class="table-btn" type="button">Next</button>
+          </div>
         </div>
       </div>
     </div>
+
   </main>
 
   <!-- Item Drawer -->
@@ -223,30 +225,33 @@
           </form>
 
           <form id="mvTransfer" data-kind="transfer" hidden>
-  <h3>Transfer</h3>
-  <input name="item_id" type="hidden" />
-  <input name="from_shelf_id" type="hidden" />
+            <h3>Transfer</h3>
+            <input name="item_id" type="hidden" />
+            <input name="from_shelf_id" type="hidden" />
 
-  <label class="form-field">
-    <span class="form-label">Move to</span>
-    <select id="mv_to_location" class="form-input" name="to_shelf_id" required>
-      <option value="" disabled selected>Choose destination</option>
-      <!-- options cloned from header #location via JS -->
-    </select>
-  </label>
+            <label class="form-field">
+              <span class="form-label">Move to</span>
+              <select id="mv_to_location" class="form-input" name="to_shelf_id" required>
+                <option value="" disabled selected>Choose destination</option>
+                <!-- options cloned from header #location via JS -->
+              </select>
+            </label>
 
-  <label class="form-field">
-    <span class="form-label">Quantity</span>
-    <input name="qty" type="number" placeholder="Quantity" required />
-  </label>
+            <label class="form-field">
+              <span class="form-label">
+                Quantity
+                <button type="button" id="mv_transfer_all" class="link-btn">Transfer all</button>
+              </span>
+              <input name="qty" type="number" placeholder="Quantity" required />
+            </label>
 
-  <label class="form-field">
-    <span class="form-label">Note</span>
-    <input name="note" placeholder="Note" />
-  </label>
+            <label class="form-field">
+              <span class="form-label">Note</span>
+              <input name="note" placeholder="Note" />
+            </label>
 
-  <button type="submit">Submit</button>
-</form>
+            <button type="submit" class="primary-btn">Transfer</button>
+          </form>
 
         </div>
       </div>
@@ -319,6 +324,26 @@
       </form>
       <table aria-label="Users"><tbody id="usersTable"></tbody></table>
     </div>
+
+    <div class="admin-block" id="appearanceBlock">
+      <h3>Preferences</h3>
+      <form id="appearanceForm">
+        <label class="form-field">
+          <span class="form-label">Theme</span>
+          <select id="themeSelect" class="form-input" name="theme">
+            <option value="desert">California Desert</option>
+            <option value="hawaii">Hawaii Pure Water</option>
+            <option value="stonehenge-moss">Stonehenge Moss</option>
+          </select>
+        </label>
+
+        <p class="import-hint">
+          Theme applies to this console on this device.
+        </p>
+      </form>
+    </div>
+
+    
   </section>
 
   <!-- Add Item Dialog -->
@@ -425,9 +450,147 @@
   </div>
 </div>
     </div>
+    </dialog>
+
+  <!-- Edit Item Dialog -->
+    <dialog id="editItemDialog" class="editItemDialog" aria-labelledby="editItemTitle">
+    <div class="modal-body">
+      <h2 id="editItemTitle" class="sr-only">Edit Item</h2>
+
+      <form id="editItemForm" class="form" novalidate>
+        <div id="editItemError" class="session-error" style="min-height:1rem;"></div>
+
+        <input id="ei_id" name="id" type="hidden" />
+
+        <label class="form-field">
+          <span class="form-label">Name *</span>
+          <input id="ei_name" name="name" class="form-input" required />
+        </label>
+
+        <label class="form-field">
+          <span class="form-label">SKU</span>
+          <input id="ei_sku" name="sku" class="form-input" />
+        </label>
+
+        <label class="form-field">
+          <span class="form-label">Unit</span>
+          <input id="ei_unit" name="unit" class="form-input" />
+        </label>
+
+        <label class="form-field">
+          <span class="form-label">Clearance Level *</span>
+          <select id="ei_cl" name="clearance_level" class="form-input" required>
+            <option value="1">1</option><option value="2">2</option>
+            <option value="3">3</option><option value="4">4</option>
+          </select>
+        </label>
+
+        <fieldset class="fieldset-block">
+          <legend class="fieldset-legend">Location *</legend>
+
+          <label class="form-field">
+            <span class="form-label">System</span>
+            <select id="ei_system" name="system_code" class="form-input" required></select>
+          </label>
+
+          <label class="form-field">
+            <span class="form-label">Shelf</span>
+            <select id="ei_shelf" name="shelf_label" class="form-input" required></select>
+          </label>
+        </fieldset>
+
+        <label class="form-field">
+          <span class="form-label">Tag</span>
+          <input id="ei_tag" name="tag" class="form-input" />
+        </label>
+
+        <label class="form-field">
+          <span class="form-label">Note</span>
+          <input id="ei_note" name="note" class="form-input" />
+        </label>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelExportBtn">
+            Cancel
+          </button>
+          <button type="button" class="btn btn-primary btn-swirly" id="confirmExportBtn">
+            Export
+          </button>
+        </div>
+
+      </form>
+    </div>
   </dialog>
 
+  <!-- Export Modal Dialog-->
+  <dialog id="exportDialog" class="modal export-modal">
+    <form id="exportForm" method="dialog" class="modal-shell">
+      <header class="modal-header">
+        <h2 class="modal-title">Export data</h2>
+        <p class="modal-subtitle">
+          Download a CSV snapshot of your warehouse. Exports are always sorted by SKU.
+        </p>
+      </header>
 
+      <section class="modal-body">
+        <div class="form-field">
+          <span class="form-label">What do you want to export?</span>
+
+          <label class="radio-field">
+            <input type="radio" name="ex_mode" value="items" checked />
+            <div class="radio-copy">
+              <span class="radio-title">Inventory only</span>
+              <span class="radio-sub">
+                Current items view as CSV • sorted by SKU • respects search, status &amp; location filters.
+              </span>
+            </div>
+          </label>
+
+          <label class="radio-field">
+            <input type="radio" name="ex_mode" value="movements" />
+            <div class="radio-copy">
+              <span class="radio-title">Movement log only</span>
+              <span class="radio-sub">
+                Movement ledger as CSV • filtered by current system / shelf • admin-only audit export.
+              </span>
+            </div>
+          </label>
+
+          <label class="radio-field">
+            <input type="radio" name="ex_mode" value="both" />
+            <div class="radio-copy">
+              <span class="radio-title">Both as ZIP</span>
+              <span class="radio-sub">
+                Inventory and movement log bundled into a single ZIP file.
+              </span>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-field">
+          <span class="form-label">Options</span>
+
+          <label class="checkbox-field">
+            <input type="checkbox" id="ex_include_deleted" />
+            <span>Include deleted items in inventory export</span>
+          </label>
+
+          <p class="hint-text subtle">
+            Movements export is not affected by this setting; it always includes the full ledger for matching items.
+          </p>
+        </div>
+      </section>
+
+      <footer class="modal-footer">
+        <button type="button" class="btn-secondary" id="exportCancel">
+          Cancel
+        </button>
+        <button type="submit" class="btn-primary" id="exportConfirm">
+          Export
+        </button>
+      </footer>
+    </form>
+  </dialog>
 
 
   <!-- Scripts -->

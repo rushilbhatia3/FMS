@@ -24,7 +24,7 @@ export const Admin = (() => {
     backBtn:       document.getElementById("backToCatalogBtn"),
   };
 
-  // ------------- Admin "Show deleted" prefs (independent of catalogue) -------------
+  // ------------- Admin "Show deleted" prefs -------------
   function getIncludeDeletedPref() {
     const prefs = core.persist.get("admin_prefs", { include_deleted: false });
     return !!prefs.include_deleted;
@@ -32,7 +32,7 @@ export const Admin = (() => {
   function setIncludeDeletedPref(v) {
     const next = { ...(core.persist.get("admin_prefs", {})), include_deleted: !!v };
     core.persist.set("admin_prefs", next);
-    // Broadcast so other parts can react if needed.
+
     core.bus.emit("admin:include_deleted_changed", { include_deleted: !!v });
   }
   function hydrateIncDelToggle(checked) {
@@ -41,7 +41,7 @@ export const Admin = (() => {
     el.incDel.setAttribute("aria-checked", checked ? "true" : "false");
   }
 
-  // ---------------- Utilities ----------------
+ 
   function optionifySystems(selectEl) {
     if (!selectEl) return;
     const prev = selectEl.value;
@@ -57,11 +57,10 @@ export const Admin = (() => {
     return systemsCache.find(s => String(s.id) === String(id));
   }
 
-  // ---------------- Loaders ----------------
+
   async function loadSystems(include_deleted) {
-    // Admin lists honor its own toggle
     systemsCache = await core.api.get("/api/systems", { include_deleted: !!include_deleted }).catch(() => []);
-    optionifySystems(el.shelfSysSel);       // Keep the form’s select fresh
+    optionifySystems(el.shelfSysSel);      
     renderSystemsTable(systemsCache);
   }
 
@@ -76,7 +75,6 @@ export const Admin = (() => {
 
     let rows = [];
     try {
-      // admin-only endpoint that returns ALL users
       rows = await core.api.get("/api/users/admin");
       if (!Array.isArray(rows)) rows = [];
     } catch (err) {
@@ -158,7 +156,7 @@ export const Admin = (() => {
           }
           const inc = getIncludeDeletedPref();
           await loadSystems(inc);
-          await loadShelves(inc); // shelf visibility can change with system delete/restore
+          await loadShelves(inc);
         } catch (err) {
           core.toast(String(err.message || err), "error");
         }
@@ -258,7 +256,7 @@ export const Admin = (() => {
         el.systemForm.reset();
         const inc = getIncludeDeletedPref();
         await loadSystems(inc);
-        await loadShelves(inc);   // show updated system codes in shelves table
+        await loadShelves(inc);  
       } catch (err) {
         core.toast(String(err.message || err), "error");
       }
@@ -299,7 +297,6 @@ export const Admin = (() => {
         }
         core.toast("Shelf saved", "success");
         el.shelfForm.reset();
-        // keep last selected system for quicker entry
         el.shelfSysSel.value = String(system_id);
         const inc = getIncludeDeletedPref();
         await loadShelves(inc);
@@ -335,7 +332,7 @@ export const Admin = (() => {
         await core.api.post("/api/users", payload);
         core.toast("User created", "success");
         el.userForm.reset();
-        await loadUsers(); // refresh list with the new user
+        await loadUsers(); 
       } catch (err) {
         core.toast(err.message || String(err), "error");
       }
@@ -359,28 +356,25 @@ export const Admin = (() => {
 
   // ---------------- Toggle + bus wiring ----------------
   function bindAdminToggleAndBus() {
-    //user flips the Admin toggle -> persist + reload lists 
     el.incDel?.addEventListener("change", async () => {
       const inc = !!el.incDel.checked;
       setIncludeDeletedPref(inc);
       await loadAdminLists({ include_deleted: inc });
     });
 
-    //after login or Admin button, sync + reload.
+    //after login sync + reload.
     core.bus.on("admin:include_deleted_changed", async ({ include_deleted }) => {
       hydrateIncDelToggle(!!include_deleted);
       await loadAdminLists({ include_deleted });
     });
   }
 
-  // ---------------- Public API ----------------
   async function loadAdminLists(opts = {}) {
     const include_deleted = opts.include_deleted ?? getIncludeDeletedPref();
     await Promise.all([loadSystems(include_deleted), loadShelves(include_deleted), loadUsers()]);
   }
 
   function init() {
-    // Initial setting of the toggle
     hydrateIncDelToggle(getIncludeDeletedPref());
 
     bindSystemForm();
@@ -393,9 +387,8 @@ export const Admin = (() => {
   return { init, loadAdminLists };
 })();
 
-// Initialize once DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
-  if (window.Admin?.init === Admin.init) return; // avoid double-init on hot reload
+  if (window.Admin?.init === Admin.init) return; 
   Admin.init();
-  window.Admin = Admin; // allow app.js to call Admin.loadAdminLists()
+  window.Admin = Admin; 
 });
